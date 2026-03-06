@@ -1,0 +1,34 @@
+{
+  "name": "@pi2labs/allset-sdk",
+  "version": "0.1.0",
+  "description": "AllSet SDK",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "author": "Pi2Labs",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "bech32": "^2.0.0",
+    "viem": "^2.46.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.11",
+    "typescript": "^5.9.3"
+  }
+}
