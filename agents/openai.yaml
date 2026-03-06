@@ -1,0 +1,7 @@
+interface:
+  display_name: "AllSet SDK"
+  short_description: "Bridge Fast and EVM with AllSet SDK"
+  default_prompt: "Use $allset-sdk to integrate or debug Fast-to-EVM OmniSet bridge flows in this codebase."
+
+policy:
+  allow_implicit_invocation: true
