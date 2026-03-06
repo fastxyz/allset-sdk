@@ -1,7 +1,14 @@
 {
-  "name": "@pi2labs/allset-sdk",
+  "name": "@fast/allset-sdk",
   "version": "0.1.0",
-  "description": "AllSet SDK",
+  "description": "AllSet SDK for OmniSet bridge flows between Fast and EVM testnets",
+  "keywords": [
+    "allset",
+    "sdk",
+    "bridge",
+    "fast",
+    "blockchain"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -16,19 +23,36 @@
   ],
   "scripts": {
     "build": "tsc",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "pack:dry-run": "node ./scripts/pack-dry-run.mjs",
+    "pack:smoke": "node ./scripts/pack-smoke.mjs",
+    "release:verify-tag": "node ./scripts/verify-tag-version.mjs",
+    "prepublishOnly": "npm run build && npm test"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "author": "Pi2Labs",
-  "license": "UNLICENSED",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Pi-Squared-Inc/allset-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Pi-Squared-Inc/allset-sdk/issues"
+  },
+  "homepage": "https://github.com/Pi-Squared-Inc/allset-sdk#readme",
   "dependencies": {
     "bech32": "^2.0.0",
     "viem": "^2.46.2"
   },
   "devDependencies": {
     "@types/node": "^22.19.11",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
 }

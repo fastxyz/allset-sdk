@@ -1,48 +1,34 @@
-# allset-sdk
+# AllSet SDK
 
-Standalone AllSet SDK for OmniSet bridge flows between Fast and EVM testnets.
+Standalone AllSet SDK extracted from `/Users/chris/Documents/Workspace/money`.
 
-This repo intentionally contains only the AllSet SDK. The Fast SDK was split out and is not bundled here.
-
-## What It Exports
-
-```ts
-import { omnisetProvider, createEvmExecutor } from '@pi2labs/allset-sdk';
-```
-
-- `omnisetProvider`: bridge provider with `bridge(...)`
-- `createEvmExecutor(...)`: minimal viem-based executor for EVM approvals and bridge transactions
-
-## Current Scope
-
-- Network: `testnet` only
-- EVM executor chain support: Ethereum Sepolia (`11155111`) and Arbitrum Sepolia (`421614`)
-- Bridge provider chain config exists for `ethereum` and `arbitrum`
-- Current token registry in this package is only Arbitrum Sepolia `USDC` / `fastUSDC`
-
-That last point matters: the package has Ethereum Sepolia bridge config, but the shipped token resolver currently only maps Arbitrum Sepolia tokens. If you call `bridge(...)` with an unsupported token/route, it will fail with `TOKEN_NOT_FOUND`.
+This repo contains only `@fast/allset-sdk`. It does not include the Fast SDK package or the old workspace wiring from the `money` monorepo.
 
 ## Install
 
-This package is set up as a normal Node package, but if you are consuming it locally before publishing:
-
 ```bash
-npm install /absolute/path/to/allset-sdk
+npm install @fast/allset-sdk
 ```
 
-To work on the package in this repo:
+## Development
 
 ```bash
 npm install
-npm run build
 ```
 
-## Deposit Example
+## Scripts
 
-EVM to Fast deposits require an EVM executor and a Fast bech32m receiver address.
+```bash
+npm run build
+npm test
+npm run pack:dry-run
+npm run pack:smoke
+```
+
+## Usage
 
 ```ts
-import { omnisetProvider, createEvmExecutor } from '@pi2labs/allset-sdk';
+import { createEvmExecutor, omnisetProvider } from '@fast/allset-sdk';
 
 const evmExecutor = createEvmExecutor(
   process.env.EVM_PRIVATE_KEY!,
@@ -65,77 +51,15 @@ const result = await omnisetProvider.bridge({
 console.log(result);
 ```
 
-## Withdrawal Example
+## Current Scope
 
-Fast to EVM withdrawals require a compatible Fast client. This repo does not include the Fast SDK implementation; it only depends on a minimal interface:
+- Testnet only
+- Fast to EVM and EVM to Fast flows only
+- EVM executor support for Ethereum Sepolia (`11155111`) and Arbitrum Sepolia (`421614`)
+- Current token registry maps Arbitrum Sepolia `USDC` and `fastUSDC`
 
-```ts
-type FastClient = {
-  submit(params: {
-    recipient: string;
-    claim: Record<string, unknown>;
-  }): Promise<{ txHash: string; certificate: unknown }>;
-  evmSign(params: {
-    certificate: unknown;
-  }): Promise<{ transaction: number[]; signature: string }>;
-  readonly address: string | null;
-};
-```
+For Fast to EVM withdrawals, provide a compatible Fast client. In most integrations that will come from `@fast/sdk`, but this package does not bundle it.
 
-Example:
+## Releasing
 
-```ts
-import { omnisetProvider } from '@pi2labs/allset-sdk';
-
-const result = await omnisetProvider.bridge({
-  fromChain: 'fast',
-  toChain: 'arbitrum',
-  fromToken: 'fastUSDC',
-  toToken: 'USDC',
-  fromDecimals: 6,
-  amount: '1000000',
-  senderAddress: 'fast1yourfastaddress',
-  receiverAddress: '0xYourEvmAddress',
-  fastClient,
-});
-
-console.log(result);
-```
-
-## Errors
-
-The SDK throws `FastError`-style errors with:
-
-- `code`
-- `message`
-- `note`
-
-Current codes:
-
-- `INSUFFICIENT_BALANCE`
-- `CHAIN_NOT_CONFIGURED`
-- `TX_FAILED`
-- `INVALID_ADDRESS`
-- `TOKEN_NOT_FOUND`
-- `INVALID_PARAMS`
-- `UNSUPPORTED_OPERATION`
-
-## Package Layout
-
-```text
-src/
-  bridge.ts         OmniSet bridge provider
-  evm-executor.ts   viem-based EVM transaction executor
-  fast-compat.ts    local FastError compatibility layer
-  index.ts          public exports
-  types.ts          public interfaces
-```
-
-## Development
-
-```bash
-npm install
-npm run build
-```
-
-Build output goes to `dist/`.
+See `RELEASING.md` for the tag-driven npm release flow and the npm trusted publishing setup this repo expects.
