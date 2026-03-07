@@ -28,7 +28,7 @@ npm run pack:smoke
 ## Usage
 
 ```ts
-import { createEvmExecutor, omnisetProvider } from '@fast/allset-sdk';
+import { createEvmExecutor, allsetProvider } from '@fast/allset-sdk';
 
 const evmExecutor = createEvmExecutor(
   process.env.EVM_PRIVATE_KEY!,
@@ -36,7 +36,7 @@ const evmExecutor = createEvmExecutor(
   421614,
 );
 
-const result = await omnisetProvider.bridge({
+const result = await allsetProvider.bridge({
   fromChain: 'arbitrum',
   toChain: 'fast',
   fromToken: 'USDC',

@@ -1,6 +1,6 @@
 ---
 name: allset-sdk
-description: Integrates and troubleshoots the Pi2Labs AllSet SDK for OmniSet bridge flows between Fast and EVM testnets. Use when the user asks to bridge USDC or fastUSDC between Fast and Arbitrum Sepolia, wire createEvmExecutor, supply a compatible fastClient for withdrawals, add examples or scripts around omnisetProvider.bridge, or debug errors such as TOKEN_NOT_FOUND, INVALID_ADDRESS, INVALID_PARAMS, UNSUPPORTED_OPERATION, and relayer or transaction failures.
+description: Integrates and troubleshoots the Pi2Labs AllSet SDK for AllSet bridge flows between Fast and EVM testnets. Use when the user asks to bridge USDC or fastUSDC between Fast and Arbitrum Sepolia, wire createEvmExecutor, supply a compatible fastClient for withdrawals, add examples or scripts around allsetProvider.bridge, or debug errors such as TOKEN_NOT_FOUND, INVALID_ADDRESS, INVALID_PARAMS, UNSUPPORTED_OPERATION, and relayer or transaction failures.
 metadata:
   author: Pi2Labs
   version: 0.1.0
@@ -10,13 +10,13 @@ metadata:
 
 Use this skill for work in this repository or in another codebase that needs to consume this package.
 
-It assumes Node.js 18+ and network access to EVM RPC endpoints and OmniSet relayer URLs.
+It assumes Node.js 18+ and network access to EVM RPC endpoints and AllSet relayer URLs.
 
 ## What This SDK Does
 
 This package exports:
 
-- `omnisetProvider`: the bridge provider with `bridge(...)`
+- `allsetProvider`: the bridge provider with `bridge(...)`
 - `createEvmExecutor(privateKey, rpcUrl, chainId)`: a minimal viem-based EVM executor
 
 This repo is intentionally standalone. It does not bundle the Fast SDK. For Fast to EVM withdrawals, callers must provide a compatible `fastClient` object that implements the interface in `src/types.ts`.
@@ -65,12 +65,12 @@ For EVM to Fast deposits:
 - Require `evmExecutor`
 - Require a Fast bech32m receiver address (`fast1...`)
 - Use `createEvmExecutor(...)` unless the user already has a compatible executor
-- Call `omnisetProvider.bridge(...)` with `fromChain` set to the EVM chain and `toChain: 'fast'`
+- Call `allsetProvider.bridge(...)` with `fromChain` set to the EVM chain and `toChain: 'fast'`
 
 Example:
 
 ```ts
-import { createEvmExecutor, omnisetProvider } from '@fast/allset-sdk';
+import { createEvmExecutor, allsetProvider } from '@fast/allset-sdk';
 
 const evmExecutor = createEvmExecutor(
   process.env.EVM_PRIVATE_KEY!,
@@ -78,7 +78,7 @@ const evmExecutor = createEvmExecutor(
   421614,
 );
 
-const result = await omnisetProvider.bridge({
+const result = await allsetProvider.bridge({
   fromChain: 'arbitrum',
   toChain: 'fast',
   fromToken: 'USDC',
@@ -96,14 +96,14 @@ For Fast to EVM withdrawals:
 - Require `fastClient`
 - `fastClient` must implement `submit(...)`, `evmSign(...)`, and `address`
 - Use an EVM receiver address (`0x...`)
-- Call `omnisetProvider.bridge(...)` with `fromChain: 'fast'`
+- Call `allsetProvider.bridge(...)` with `fromChain: 'fast'`
 
 Example:
 
 ```ts
-import { omnisetProvider } from '@fast/allset-sdk';
+import { allsetProvider } from '@fast/allset-sdk';
 
-const result = await omnisetProvider.bridge({
+const result = await allsetProvider.bridge({
   fromChain: 'fast',
   toChain: 'arbitrum',
   fromToken: 'fastUSDC',
@@ -121,7 +121,7 @@ const result = await omnisetProvider.bridge({
 When reasoning about behavior, use the code as the source of truth:
 
 - Token resolution is driven by `CHAIN_TOKENS` in `src/bridge.ts`
-- Supported bridge routes are enforced in `omnisetProvider.bridge(...)`
+- Supported bridge routes are enforced in `allsetProvider.bridge(...)`
 - Withdrawal posts to the relayer URL from `CHAIN_CONFIGS`
 - The package throws `FastError`-style errors from `src/fast-compat.ts`
 
@@ -201,7 +201,7 @@ Fix:
 ## Common Requests This Skill Should Trigger On
 
 - "Use the AllSet SDK to bridge USDC from Arbitrum Sepolia to Fast"
-- "Add a Node script that deposits through omnisetProvider"
+- "Add a Node script that deposits through allsetProvider"
 - "Wire createEvmExecutor into this backend"
 - "Use a Fast client to withdraw fastUSDC to Arbitrum"
 - "Why do I get TOKEN_NOT_FOUND from allset-sdk?"
@@ -209,7 +209,7 @@ Fix:
 
 ## Requests This Skill Should Not Own
 
-- Generic EVM wallet work unrelated to OmniSet bridging
+- Generic EVM wallet work unrelated to AllSet bridging
 - Full Fast wallet implementation
 - Mainnet bridge guidance when the code only supports testnet
 - Claims that Ethereum Sepolia token bridging already works without code changes

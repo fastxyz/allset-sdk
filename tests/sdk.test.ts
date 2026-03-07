@@ -1,17 +1,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createEvmExecutor, omnisetProvider } from '../src/index.ts';
+import { createEvmExecutor, allsetProvider } from '../src/index.ts';
 
-test('omnisetProvider exposes expected metadata', () => {
-  assert.equal(omnisetProvider.name, 'omniset');
-  assert.deepEqual(omnisetProvider.chains, ['fast', 'ethereum', 'arbitrum']);
-  assert.deepEqual(omnisetProvider.networks, ['testnet']);
+test('allsetProvider exposes expected metadata', () => {
+  assert.equal(allsetProvider.name, 'allset');
+  assert.deepEqual(allsetProvider.chains, ['fast', 'ethereum', 'arbitrum']);
+  assert.deepEqual(allsetProvider.networks, ['testnet']);
 });
 
 test('unsupported route is rejected', async () => {
   await assert.rejects(
-    () => omnisetProvider.bridge({
+    () => allsetProvider.bridge({
       fromChain: 'ethereum',
       toChain: 'arbitrum',
       fromToken: 'USDC',
@@ -30,7 +30,7 @@ test('unsupported route is rejected', async () => {
 
 test('deposit without evmExecutor is rejected', async () => {
   await assert.rejects(
-    () => omnisetProvider.bridge({
+    () => allsetProvider.bridge({
       fromChain: 'arbitrum',
       toChain: 'fast',
       fromToken: 'USDC',
@@ -49,7 +49,7 @@ test('deposit without evmExecutor is rejected', async () => {
 
 test('withdrawal without fastClient is rejected', async () => {
   await assert.rejects(
-    () => omnisetProvider.bridge({
+    () => allsetProvider.bridge({
       fromChain: 'fast',
       toChain: 'arbitrum',
       fromToken: 'fastUSDC',

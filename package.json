@@ -1,7 +1,7 @@
 {
   "name": "@fast/allset-sdk",
   "version": "0.1.0",
-  "description": "AllSet SDK for OmniSet bridge flows between Fast and EVM testnets",
+  "description": "AllSet SDK for AllSet bridge flows between Fast and EVM testnets",
   "keywords": [
     "allset",
     "sdk",
