@@ -1,5 +1,5 @@
 {
-  "name": "@fast/allset-sdk",
+  "name": "@fastxyz/allset-sdk",
   "version": "0.1.0",
   "description": "AllSet SDK for OmniSet bridge flows between Fast and EVM testnets",
   "keywords": [
@@ -40,12 +40,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Pi-Squared-Inc/allset-sdk.git"
+    "url": "git+https://github.com/fastxyz/allset-sdk.git"
   },
   "bugs": {
-    "url": "https://github.com/Pi-Squared-Inc/allset-sdk/issues"
+    "url": "https://github.com/fastxyz/allset-sdk/issues"
   },
-  "homepage": "https://github.com/Pi-Squared-Inc/allset-sdk#readme",
+  "homepage": "https://github.com/fastxyz/allset-sdk#readme",
   "dependencies": {
     "bech32": "^2.0.0",
     "viem": "^2.46.2"

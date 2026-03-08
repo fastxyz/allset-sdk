@@ -1,5 +1,5 @@
 /**
- * @fast/allset-sdk — OmniSet bridge SDK
+ * @fastxyz/allset-sdk — OmniSet bridge SDK
  *
  * Bridges assets between Fast chain and EVM chains (Arbitrum Sepolia, Ethereum Sepolia).
  */

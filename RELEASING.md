@@ -1,11 +1,11 @@
 # Releasing AllSet SDK
 
-This repo publishes `@fast/allset-sdk` to npm from Git tags.
+This repo publishes `@fastxyz/allset-sdk` to npm from Git tags.
 
 ## One-time npm setup
 
-1. Create or verify access to the `@fast` npm scope.
-2. Configure npm trusted publishing for `Pi-Squared-Inc/allset-sdk`.
+1. Create or verify access to the `@fastxyz` npm scope.
+2. Configure npm trusted publishing for `fastxyz/allset-sdk`.
 3. Register the publish workflow filename exactly as `.github/workflows/publish.yml`.
 
 Trusted publishing is the expected path for this repo. Do not add a long-lived npm token unless trusted publishing is unavailable.
@@ -17,7 +17,7 @@ Trusted publishing is the expected path for this repo. Do not add a long-lived n
 3. Merge the release commit to `main`.
 4. Create and push a matching tag in the form `vX.Y.Z`.
 5. Wait for the publish workflow to finish.
-6. Verify the package on npm and test a fresh install with `npm install @fast/allset-sdk`.
+6. Verify the package on npm and test a fresh install with `npm install @fastxyz/allset-sdk`.
 
 ## Release invariants
 
