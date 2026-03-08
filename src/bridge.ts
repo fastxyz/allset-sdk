@@ -299,11 +299,15 @@ export const allsetProvider: BridgeProvider = {
         ],
       );
 
+      // Deadline: 1 hour from now
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
+
       const intentClaimEncoded = encodeAbiParameters(
         [{
           type: 'tuple',
           components: [
             { name: 'transferClaimHash', type: 'bytes32' },
+            { name: 'deadline', type: 'uint256' },
             {
               name: 'intents',
               type: 'tuple[]',
@@ -317,6 +321,7 @@ export const allsetProvider: BridgeProvider = {
         }],
         [{
           transferClaimHash: transferClaimHash as `0x${string}`,
+          deadline,
           intents: [{
             action: 1,
             payload: dynamicTransferPayload,
