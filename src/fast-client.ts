@@ -17,8 +17,8 @@ ed.etc.sha512Sync = (...m: Uint8Array[]) => sha512(ed.etc.concatBytes(...m));
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const DEFAULT_FAST_RPC_URL = 'https://staging.api.fastset.xyz/proxy';
-const CROSS_SIGN_URL = 'https://staging.omniset.fastset.xyz/cross-sign';
+const DEFAULT_FAST_RPC_URL = 'https://staging.proxy.fastset.xyz';
+const CROSS_SIGN_URL = 'https://staging.cross-sign.allset.fastset.xyz';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
