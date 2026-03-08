@@ -353,11 +353,13 @@ export const allsetProvider: BridgeProvider = {
       const relayerBody = {
         encoded_transfer_claim: Array.from(new Uint8Array(transferCrossSign.transaction.map(Number))),
         transfer_proof: transferCrossSign.signature,
+        transfer_fast_tx_id: transferResult.txHash,
         transfer_claim_id: transferResult.txHash,
         fastset_address: params.senderAddress,
         external_address: params.receiverAddress,
         encoded_intent_claim: Array.from(new Uint8Array(intentCrossSign.transaction.map(Number))),
         intent_proof: intentCrossSign.signature,
+        intent_fast_tx_id: intentResult.txHash,
         intent_claim_id: intentResult.txHash,
         external_token_address: evmTokenAddress,
       };
