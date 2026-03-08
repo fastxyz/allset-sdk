@@ -17,21 +17,21 @@ function base64ToBytes(b64: string): Uint8Array {
   return new Uint8Array(Buffer.from(b64, 'base64'));
 }
 
-const FAST_USDC_TOKEN_ID = base64ToBytes('HnRJAAIRgrKTU4u2aFt33wleNRNk1VACFhTOkMirngo=');
-const FAST_USDC_TOKEN_HEX = '1e744900021182b29352cbb6685b77df095e35136cd550021614ce928daae782';
+const FAST_USDC_TOKEN_ID = hexToUint8Array('1b48766165f2cc84292d8c06b0523e1eefd7586049be0f82249c002f88a409ef');
+const FAST_USDC_TOKEN_HEX = '1b48766165f2cc84292d8c06b0523e1eefd7586049be0f82249c002f88a409ef';
 
 const CHAIN_CONFIGS: Record<string, AllSetChainConfig> = {
   ethereum: {
     chainId: 11155111,
     bridgeContract: '0x38b48764f6B12e1Dd5e4f8391d06d34Ba3920201',
     fastsetBridgeAddress: 'fast19cjwajufyuqv883ydlvrp8xrhxejuvfe40pxq5dsrv675zgh89sqg9txs8',
-    relayerUrl: 'https://staging.omniset.fastset.xyz/ethereum-sepolia-relayer',
+    relayerUrl: 'https://staging.omniset.fastset.xyz/ethereum-sepolia-relayer/relay',
   },
   arbitrum: {
     chainId: 421614,
     bridgeContract: '0xBb9111E62c9EE364cF6dc676d754602a2E259bd3',
     fastsetBridgeAddress: 'fast1pz07pdlspsydyt2g79yeshunhfyjsr5j4ahuyfv8hpdn00ks8u6q8axf9t',
-    relayerUrl: 'https://staging.omniset.fastset.xyz/arbitrum-sepolia-relayer',
+    relayerUrl: 'https://staging.omniset.fastset.xyz/arbitrum-sepolia-relayer/relay',
   },
 };
 
