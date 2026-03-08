@@ -70,7 +70,7 @@ For EVM to Fast deposits:
 Example:
 
 ```ts
-import { createEvmExecutor, omnisetProvider } from '@fast/allset-sdk';
+import { createEvmExecutor, omnisetProvider } from '@fastxyz/allset-sdk';
 
 const evmExecutor = createEvmExecutor(
   process.env.EVM_PRIVATE_KEY!,
@@ -101,7 +101,7 @@ For Fast to EVM withdrawals:
 Example:
 
 ```ts
-import { omnisetProvider } from '@fast/allset-sdk';
+import { omnisetProvider } from '@fastxyz/allset-sdk';
 
 const result = await omnisetProvider.bridge({
   fromChain: 'fast',

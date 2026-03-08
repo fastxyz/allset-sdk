@@ -2,12 +2,12 @@
 
 Standalone AllSet SDK extracted from `/Users/chris/Documents/Workspace/money`.
 
-This repo contains only `@fast/allset-sdk`. It does not include the Fast SDK package or the old workspace wiring from the `money` monorepo.
+This repo contains only `@fastxyz/allset-sdk`. It does not include the Fast SDK package or the old workspace wiring from the `money` monorepo.
 
 ## Install
 
 ```bash
-npm install @fast/allset-sdk
+npm install @fastxyz/allset-sdk
 ```
 
 ## Development
@@ -28,7 +28,7 @@ npm run pack:smoke
 ## Usage
 
 ```ts
-import { createEvmExecutor, omnisetProvider } from '@fast/allset-sdk';
+import { createEvmExecutor, omnisetProvider } from '@fastxyz/allset-sdk';
 
 const evmExecutor = createEvmExecutor(
   process.env.EVM_PRIVATE_KEY!,
@@ -58,7 +58,7 @@ console.log(result);
 - EVM executor support for Ethereum Sepolia (`11155111`) and Arbitrum Sepolia (`421614`)
 - Current token registry maps Arbitrum Sepolia `USDC` and `fastUSDC`
 
-For Fast to EVM withdrawals, provide a compatible Fast client. In most integrations that will come from `@fast/sdk`, but this package does not bundle it.
+For Fast to EVM withdrawals, provide a compatible Fast client. In most integrations that will come from `@fastxyz/sdk`, but this package does not bundle it.
 
 ## Releasing
 
