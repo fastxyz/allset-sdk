@@ -47,6 +47,9 @@
   },
   "homepage": "https://github.com/Pi-Squared-Inc/allset-sdk#readme",
   "dependencies": {
+    "@mysten/bcs": "^2.0.2",
+    "@noble/ed25519": "^3.0.0",
+    "@noble/hashes": "^2.0.1",
     "bech32": "^2.0.0",
     "viem": "^2.46.2"
   },

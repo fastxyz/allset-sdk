@@ -6,6 +6,7 @@
 
 export { allsetProvider } from './bridge.js';
 export { createEvmExecutor, createEvmWallet } from './evm-executor.js';
+export { createFastClient } from './fast-client.js';
 
 export type {
   BridgeProvider,
@@ -14,3 +15,5 @@ export type {
   AllSetChainConfig,
   AllSetTokenInfo,
 } from './types.js';
+
+export type { FastClientOptions } from './fast-client.js';

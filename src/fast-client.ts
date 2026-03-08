@@ -1,0 +1,335 @@
+/**
+ * fast-client.ts — FastClient implementation for AllSet SDK
+ * 
+ * Provides a reference implementation of the FastClient interface with proper
+ * handling of large integers (timestamp_nanos) to avoid JavaScript precision loss.
+ */
+
+import { bcs } from '@mysten/bcs';
+import * as ed from '@noble/ed25519';
+import { sha512 } from '@noble/hashes/sha2.js';
+import { keccak_256 } from '@noble/hashes/sha3.js';
+import { bech32m } from 'bech32';
+import type { FastClient } from './types.js';
+
+// Configure ed25519
+ed.etc.sha512Sync = (...m: Uint8Array[]) => sha512(ed.etc.concatBytes(...m));
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const DEFAULT_FAST_RPC_URL = 'https://staging.api.fastset.xyz/proxy';
+const CROSS_SIGN_URL = 'https://staging.omniset.fastset.xyz/cross-sign';
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function hexToBytes(hex: string): Uint8Array {
+  const clean = hex.startsWith('0x') ? hex.slice(2) : hex;
+  const bytes = new Uint8Array(clean.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
+  }
+  return bytes;
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function pubkeyToFastAddress(pubkey: string): string {
+  const pubkeyBytes = hexToBytes(pubkey);
+  const words = bech32m.toWords(pubkeyBytes);
+  return bech32m.encode('fast', words);
+}
+
+// ─── BCS Definitions ──────────────────────────────────────────────────────────
+
+const AmountBcs = bcs.u256().transform({
+  input: (val: string) => {
+    const hexVal = val.startsWith('0x') ? val : `0x${val}`;
+    return BigInt(hexVal).toString();
+  },
+});
+
+const TokenTransferBcs = bcs.struct('TokenTransfer', {
+  token_id: bcs.bytes(32),
+  amount: AmountBcs,
+  user_data: bcs.option(bcs.bytes(32)),
+});
+
+const ExternalClaimBodyBcs = bcs.struct('ExternalClaimBody', {
+  verifier_committee: bcs.vector(bcs.bytes(32)),
+  verifier_quorum: bcs.u64(),
+  claim_data: bcs.vector(bcs.u8()),
+});
+
+const ExternalClaimFullBcs = bcs.struct('ExternalClaimFull', {
+  claim: ExternalClaimBodyBcs,
+  signatures: bcs.vector(bcs.tuple([bcs.bytes(32), bcs.bytes(64)])),
+});
+
+const ClaimTypeBcs = bcs.enum('ClaimType', {
+  TokenTransfer: TokenTransferBcs,
+  TokenCreation: bcs.struct('TokenCreation', { dummy: bcs.u8() }),
+  TokenManagement: bcs.struct('TokenManagement', { dummy: bcs.u8() }),
+  Mint: bcs.struct('Mint', { dummy: bcs.u8() }),
+  Burn: bcs.struct('Burn', { dummy: bcs.u8() }),
+  StateInitialization: bcs.struct('StateInitialization', { dummy: bcs.u8() }),
+  StateUpdate: bcs.struct('StateUpdate', { dummy: bcs.u8() }),
+  ExternalClaim: ExternalClaimFullBcs,
+  StateReset: bcs.struct('StateReset', { dummy: bcs.u8() }),
+  JoinCommittee: bcs.struct('JoinCommittee', { dummy: bcs.u8() }),
+  LeaveCommittee: bcs.struct('LeaveCommittee', { dummy: bcs.u8() }),
+  ChangeCommittee: bcs.struct('ChangeCommittee', { dummy: bcs.u8() }),
+  Batch: bcs.struct('Batch', { dummy: bcs.u8() }),
+});
+
+const TransactionBcs = bcs.struct('Transaction', {
+  sender: bcs.bytes(32),
+  recipient: bcs.bytes(32),
+  nonce: bcs.u64(),
+  timestamp_nanos: bcs.u128(),
+  claim: ClaimTypeBcs,
+  archival: bcs.bool(),
+});
+
+// ─── FastClient Options ───────────────────────────────────────────────────────
+
+export interface FastClientOptions {
+  /** Private key as hex string (32 bytes / 64 hex chars) */
+  privateKey: string;
+  /** Public key as hex string (32 bytes / 64 hex chars) */
+  publicKey: string;
+  /** Optional RPC URL override */
+  rpcUrl?: string;
+  /** Optional cross-sign URL override */
+  crossSignUrl?: string;
+}
+
+// ─── FastClient Implementation ────────────────────────────────────────────────
+
+/**
+ * Create a FastClient for interacting with the Fast network.
+ * 
+ * IMPORTANT: This implementation properly handles large integers (timestamp_nanos)
+ * which exceed JavaScript's safe integer range. Incorrect handling causes transaction
+ * hash mismatches and on-chain verification failures (error 0x36289cf3).
+ * 
+ * @example
+ * ```typescript
+ * const client = createFastClient({
+ *   privateKey: 'REDACTED_FAST_PRIVATE_KEY',
+ *   publicKey: 'REDACTED_FAST_PUBLIC_KEY',
+ * });
+ * ```
+ */
+export function createFastClient(options: FastClientOptions): FastClient {
+  const { privateKey, publicKey, rpcUrl = DEFAULT_FAST_RPC_URL, crossSignUrl = CROSS_SIGN_URL } = options;
+  
+  const address = pubkeyToFastAddress(publicKey);
+  const privateKeyBytes = hexToBytes(privateKey);
+  const publicKeyBytes = hexToBytes(publicKey);
+
+  async function getNonce(): Promise<number> {
+    const payload = {
+      jsonrpc: '2.0',
+      id: Date.now(),
+      method: 'proxy_getAccountInfo',
+      params: {
+        address: Array.from(publicKeyBytes),
+        token_balances_filter: [],
+        state_key_filter: null,
+        certificate_by_nonce: null,
+      },
+    };
+    const response = await fetch(rpcUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json() as { result?: { next_nonce: number } };
+    return result.result?.next_nonce ?? 0;
+  }
+
+  /**
+   * Compute transaction hash from certificate.
+   * 
+   * CRITICAL: timestamp_nanos can exceed JavaScript's safe integer range (2^53 - 1).
+   * We extract it from raw response text BEFORE JSON parsing to preserve precision.
+   */
+  function computeTxHash(responseText: string, certificate: unknown): string {
+    const cert = certificate as { envelope?: { transaction?: unknown } };
+    
+    if (!cert.envelope?.transaction) {
+      throw new Error('Certificate missing envelope.transaction');
+    }
+
+    // Clone transaction for normalization
+    const certTx = JSON.parse(JSON.stringify(cert.envelope.transaction));
+
+    // Normalize amount to hex with 0x prefix
+    if (certTx.claim?.TokenTransfer?.amount !== undefined) {
+      const amt = certTx.claim.TokenTransfer.amount;
+      if (typeof amt === 'string' && !amt.startsWith('0x')) {
+        // Amount is hex string without prefix - just add prefix
+        certTx.claim.TokenTransfer.amount = '0x' + amt;
+      } else if (typeof amt === 'number') {
+        certTx.claim.TokenTransfer.amount = '0x' + BigInt(amt).toString(16);
+      }
+    }
+
+    // CRITICAL: Extract timestamp_nanos from raw response to preserve precision
+    // JavaScript's JSON.parse converts large numbers to floats, losing precision
+    // for values > Number.MAX_SAFE_INTEGER (9007199254740991)
+    const rawTsMatch = responseText.match(/"timestamp_nanos"\s*:\s*(\d+)/);
+    if (rawTsMatch) {
+      certTx.timestamp_nanos = '0x' + BigInt(rawTsMatch[1]).toString(16);
+    } else if (certTx.timestamp_nanos !== undefined) {
+      // Fallback - may lose precision for large values
+      certTx.timestamp_nanos = '0x' + BigInt(certTx.timestamp_nanos).toString(16);
+    }
+
+    const certTxBytes = TransactionBcs.serialize(certTx).toBytes();
+    return '0x' + bytesToHex(keccak_256(certTxBytes));
+  }
+
+  return {
+    address,
+
+    async submit(params: { recipient: string; claim: Record<string, unknown> }) {
+      const nonce = await getNonce();
+
+      // Decode recipient
+      const decoded = bech32m.decode(params.recipient, 90);
+      const recipientPubKey = new Uint8Array(bech32m.fromWords(decoded.words));
+
+      // Build transaction
+      let transaction: Record<string, unknown>;
+
+      if (params.claim.TokenTransfer) {
+        const tt = params.claim.TokenTransfer as { token_id: Uint8Array; amount: string; user_data: unknown };
+        const hexAmount = BigInt(tt.amount).toString(16);
+        transaction = {
+          sender: Array.from(publicKeyBytes),
+          recipient: Array.from(recipientPubKey),
+          nonce,
+          timestamp_nanos: BigInt(Date.now()) * 1_000_000n,
+          claim: {
+            TokenTransfer: {
+              token_id: Array.from(tt.token_id),
+              amount: hexAmount,
+              user_data: tt.user_data,
+            },
+          },
+          archival: false,
+        };
+      } else if (params.claim.ExternalClaim) {
+        const ec = params.claim.ExternalClaim as {
+          claim: { verifier_committee: unknown[]; verifier_quorum: number; claim_data: number[] };
+          signatures: unknown[];
+        };
+        transaction = {
+          sender: Array.from(publicKeyBytes),
+          recipient: Array.from(recipientPubKey),
+          nonce,
+          timestamp_nanos: BigInt(Date.now()) * 1_000_000n,
+          claim: {
+            ExternalClaim: {
+              claim: {
+                verifier_committee: ec.claim.verifier_committee || [],
+                verifier_quorum: ec.claim.verifier_quorum || 0,
+                claim_data: ec.claim.claim_data || [],
+              },
+              signatures: ec.signatures || [],
+            },
+          },
+          archival: false,
+        };
+      } else {
+        throw new Error('Unsupported claim type: ' + Object.keys(params.claim).join(', '));
+      }
+
+      // Sign: ed25519("Transaction::" + BCS(transaction))
+      const msgHead = new TextEncoder().encode('Transaction::');
+      const msgBody = TransactionBcs.serialize(transaction).toBytes();
+      const msg = new Uint8Array(msgHead.length + msgBody.length);
+      msg.set(msgHead, 0);
+      msg.set(msgBody, msgHead.length);
+      const signatureBytes = await ed.signAsync(msg, privateKeyBytes.slice(0, 32));
+
+      // Submit to RPC
+      const payload = {
+        jsonrpc: '2.0',
+        id: Date.now(),
+        method: 'proxy_submitTransaction',
+        params: {
+          transaction,
+          signature: { Signature: Array.from(signatureBytes) },
+        },
+      };
+
+      const response = await fetch(rpcUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload, (_k, v) => {
+          if (typeof v === 'bigint') return Number(v);
+          return v;
+        }),
+      });
+
+      // Keep raw response text for precise timestamp_nanos extraction
+      const responseText = await response.text();
+      const result = JSON.parse(responseText) as {
+        result?: { Success?: unknown } | unknown;
+        error?: { message: string };
+      };
+
+      if (result.error) {
+        throw new Error(`Fast RPC error: ${result.error.message}`);
+      }
+
+      const submitResult = result.result as { Success?: unknown };
+      const certificate = submitResult?.Success ?? submitResult;
+
+      if (!certificate) {
+        throw new Error('No result from Fast RPC');
+      }
+
+      // Compute hash with precise timestamp_nanos
+      const txHash = computeTxHash(responseText, certificate);
+
+      return { txHash, certificate };
+    },
+
+    async evmSign(params: { certificate: unknown }) {
+      const res = await fetch(crossSignUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'crossSign_evmSignCertificate',
+          params: { certificate: params.certificate },
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Cross-sign request failed: ${res.status}`);
+      }
+
+      const json = await res.json() as {
+        result?: { transaction: number[]; signature: string };
+        error?: { message: string };
+      };
+
+      if (json.error) {
+        throw new Error(`Cross-sign error: ${json.error.message}`);
+      }
+
+      if (!json.result?.transaction || !json.result?.signature) {
+        throw new Error('Cross-sign returned invalid response');
+      }
+
+      return json.result;
+    },
+  };
+}
