@@ -9,7 +9,7 @@
  */
 
 import { bech32m } from 'bech32';
-import { encodeAbiParameters, encodeFunctionData, hashMessage } from 'viem';
+import { encodeAbiParameters, encodeFunctionData } from 'viem';
 import { FastError } from './fast-compat.js';
 import type { BridgeProvider, AllSetChainConfig, AllSetTokenInfo } from './types.js';
 
@@ -287,9 +287,9 @@ export const allsetProvider: BridgeProvider = {
         certificate: transferResult.certificate,
       });
 
-      const transferClaimHash = hashMessage({
-        raw: new Uint8Array(transferCrossSign.transaction),
-      });
+      // Use the transaction hash directly (keccak256 of BCS-serialized transaction)
+      // This matches how x402-sdk and AllSetPortal compute the transfer ID
+      const transferFastTxId = transferResult.txHash as `0x${string}`;
 
       const dynamicTransferPayload = encodeAbiParameters(
         [{ type: 'address' }, { type: 'address' }],
@@ -306,7 +306,7 @@ export const allsetProvider: BridgeProvider = {
         [{
           type: 'tuple',
           components: [
-            { name: 'transferClaimHash', type: 'bytes32' },
+            { name: 'transferFastTxId', type: 'bytes32' },
             { name: 'deadline', type: 'uint256' },
             {
               name: 'intents',
@@ -320,7 +320,7 @@ export const allsetProvider: BridgeProvider = {
           ],
         }],
         [{
-          transferClaimHash: transferClaimHash as `0x${string}`,
+          transferFastTxId,
           deadline,
           intents: [{
             action: 1,
@@ -381,7 +381,7 @@ export const allsetProvider: BridgeProvider = {
 
       return {
         txHash: transferResult.txHash,
-        orderId: transferClaimHash,
+        orderId: transferFastTxId,
         estimatedTime: '1-5 minutes',
       };
     } catch (err: unknown) {
