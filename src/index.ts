@@ -5,7 +5,7 @@
  */
 
 export { allsetProvider } from './bridge.js';
-export { createEvmExecutor } from './evm-executor.js';
+export { createEvmExecutor, createEvmWallet } from './evm-executor.js';
 
 export type {
   BridgeProvider,

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createEvmExecutor, allsetProvider } from '../src/index.ts';
+import { createEvmExecutor, createEvmWallet, allsetProvider } from '../src/index.ts';
 
 test('allsetProvider exposes expected metadata', () => {
   assert.equal(allsetProvider.name, 'allset');
@@ -71,4 +71,21 @@ test('createEvmExecutor rejects unsupported chain ids', () => {
     () => createEvmExecutor(`0x${'11'.repeat(32)}`, 'http://localhost:8545', 1),
     /Unsupported EVM chain ID/,
   );
+});
+
+test('createEvmWallet generates valid wallet', () => {
+  const wallet = createEvmWallet();
+  
+  // Check privateKey format
+  assert.ok(wallet.privateKey.startsWith('0x'), 'privateKey should start with 0x');
+  assert.equal(wallet.privateKey.length, 66, 'privateKey should be 66 chars (0x + 64 hex)');
+  
+  // Check address format
+  assert.ok(wallet.address.startsWith('0x'), 'address should start with 0x');
+  assert.equal(wallet.address.length, 42, 'address should be 42 chars (0x + 40 hex)');
+  
+  // Check that two wallets are different
+  const wallet2 = createEvmWallet();
+  assert.notEqual(wallet.privateKey, wallet2.privateKey, 'should generate unique keys');
+  assert.notEqual(wallet.address, wallet2.address, 'should generate unique addresses');
 });
