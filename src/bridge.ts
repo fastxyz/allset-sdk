@@ -1,11 +1,11 @@
 /**
  * bridge.ts — AllSet bridge provider
  *
- * Bridges between Fast chain and the SDK's supported EVM routes.
+ * Bridges between Fast network and the SDK's supported EVM routes.
  *
  * Two directions:
  *   Deposit  (EVM → Fast): call bridge.deposit(token, amount, receiver) on the EVM bridge contract
- *   Withdraw (Fast → EVM): transfer on Fast chain + submit ExternalClaim intent + POST to relayer
+ *   Withdraw (Fast → EVM): transfer on Fast network + submit ExternalClaim intent + POST to relayer
  */
 
 import { bech32m } from 'bech32';
@@ -111,7 +111,7 @@ export const allsetProvider: BridgeProvider = {
       if (!isDeposit && !isWithdraw) {
         throw new FastError(
           'UNSUPPORTED_OPERATION',
-          `AllSet only supports bridging between Fast chain and EVM chains (ethereum, arbitrum). Got: ${params.fromChain} → ${params.toChain}`,
+          `AllSet only supports bridging between Fast network and EVM chains (ethereum, arbitrum). Got: ${params.fromChain} → ${params.toChain}`,
           {
             note: 'Use fromChain: "fast" for withdrawals, or toChain: "fast" for deposits.\n  Example: await allset.bridge({ fromChain: "ethereum", toChain: "fast", fromToken: "USDC", toToken: "fastUSDC", amount: "1000000", senderAddress: "0x...", receiverAddress: "fast1..." })',
           },
@@ -161,9 +161,9 @@ export const allsetProvider: BridgeProvider = {
           const msg = err instanceof Error ? err.message : String(err);
           throw new FastError(
             'INVALID_ADDRESS',
-            `Failed to decode Fast chain receiver address "${params.receiverAddress}": ${msg}`,
+            `Failed to decode Fast network receiver address "${params.receiverAddress}": ${msg}`,
             {
-              note: 'The receiver address must be a valid Fast chain bech32m address (fast1...).\n  Example: fast1abc...',
+              note: 'The receiver address must be a valid Fast network bech32m address (fast1...).\n  Example: fast1abc...',
             },
           );
         }
@@ -376,7 +376,7 @@ export const allsetProvider: BridgeProvider = {
           'TX_FAILED',
           `AllSet relayer request failed (${relayRes.status}): ${text}`,
           {
-            note: 'The withdrawal was submitted to Fast chain but the relayer rejected it. Try again.',
+            note: 'The withdrawal was submitted to Fast network but the relayer rejected it. Try again.',
           },
         );
       }

@@ -1,7 +1,7 @@
 ---
 name: allset-sdk
 description: >
-  AllSet SDK for bridging tokens between Fast chain and EVM chains. Use when the user asks to bridge
+  AllSet SDK for bridging tokens between Fast network and EVM chains. Use when the user asks to bridge
   USDC or fastUSDC between Fast and Arbitrum/Ethereum Sepolia, wire createEvmExecutor or createFastClient,
   add examples or scripts around allsetProvider.bridge, or debug bridge errors such as TOKEN_NOT_FOUND,
   INVALID_ADDRESS, INVALID_PARAMS, UNSUPPORTED_OPERATION, and relayer or transaction failures.
@@ -21,7 +21,7 @@ This package exports:
 
 - `allsetProvider`: the bridge provider with `bridge(...)`
 - `createEvmExecutor(privateKey, rpcUrl, chainId)`: a viem-based EVM transaction executor
-- `createFastClient(options)`: a Fast chain client for withdrawals
+- `createFastClient(options)`: a Fast network client for withdrawals
 - `createEvmWallet()`: utility to generate new EVM wallets
 
 ## Current Support Matrix

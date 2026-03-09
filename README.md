@@ -1,6 +1,6 @@
 # AllSet SDK
 
-Official TypeScript SDK for the AllSet bridge. Bridge tokens between Fast chain and supported EVM routes, with the current branch focused on Arbitrum Sepolia and Fast testnet flows.
+Official TypeScript SDK for the AllSet bridge. Bridge tokens between Fast network and supported EVM routes, with the current branch focused on Arbitrum Sepolia and Fast testnet flows.
 
 ## Install
 
@@ -79,7 +79,7 @@ Best practice: generate the Fast wallet once, store the private/public keys in y
 - **Deposit** - Bridge USDC from EVM chains to fastUSDC on Fast
 - **Withdraw** - Bridge fastUSDC from Fast to USDC on EVM chains
 - **EVM Executor** - Built-in viem-based transaction executor
-- **Fast Client** - Built-in Fast chain client for withdrawals
+- **Fast Client** - Built-in Fast network client for withdrawals
 - **Fast Wallet Generator** - Generate a Fast keypair and address without another SDK
 
 ## Supported Networks
