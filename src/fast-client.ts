@@ -26,6 +26,9 @@ const CROSS_SIGN_URL = 'https://staging.cross-sign.allset.fastset.xyz';
 
 function hexToBytes(hex: string): Uint8Array {
   const clean = hex.startsWith('0x') ? hex.slice(2) : hex;
+  if (!/^[0-9a-fA-F]*$/.test(clean) || clean.length % 2 !== 0) {
+    throw new Error(`Invalid hex string: ${hex}`);
+  }
   const bytes = new Uint8Array(clean.length / 2);
   for (let i = 0; i < bytes.length; i++) {
     bytes[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
@@ -197,10 +200,25 @@ export function createFastWallet(): FastWallet {
  */
 export function createFastClient(options: FastClientOptions): FastClient {
   const { privateKey, publicKey, rpcUrl = DEFAULT_FAST_RPC_URL, crossSignUrl = CROSS_SIGN_URL } = options;
-  
-  const address = pubkeyToFastAddress(publicKey);
   const privateKeyBytes = hexToBytes(privateKey);
   const publicKeyBytes = hexToBytes(publicKey);
+  if (privateKeyBytes.length !== 32) {
+    throw new Error('Fast privateKey must be a 32-byte hex string');
+  }
+  if (publicKeyBytes.length !== 32) {
+    throw new Error('Fast publicKey must be a 32-byte hex string');
+  }
+
+  const derivedPublicKey = ed.getPublicKey(privateKeyBytes);
+  const normalizedPublicKey = bytesToHex(publicKeyBytes);
+  const normalizedDerivedPublicKey = bytesToHex(derivedPublicKey);
+  derivedPublicKey.fill(0);
+
+  if (normalizedPublicKey !== normalizedDerivedPublicKey) {
+    throw new Error('Fast publicKey does not match the supplied privateKey');
+  }
+
+  const address = pubkeyToFastAddress(normalizedPublicKey);
 
   async function getNonce(): Promise<number> {
     const payload = {

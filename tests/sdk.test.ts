@@ -115,6 +115,19 @@ test('createFastWallet generates a usable Fast wallet', () => {
   assert.notEqual(wallet.address, wallet2.address, 'should generate unique addresses');
 });
 
+test('createFastClient rejects mismatched Fast keypairs', () => {
+  const wallet = createFastWallet();
+  const otherWallet = createFastWallet();
+
+  assert.throws(
+    () => createFastClient({
+      privateKey: wallet.privateKey,
+      publicKey: otherWallet.publicKey,
+    }),
+    /publicKey does not match/,
+  );
+});
+
 test('createFastClient preserves exact timestamp_nanos in submit and evmSign payloads', async (t) => {
   const originalFetch = globalThis.fetch;
   const originalDateNow = Date.now;
@@ -123,8 +136,9 @@ test('createFastClient preserves exact timestamp_nanos in submit and evmSign pay
   let crossSignBody = '';
 
   const expectedTimestamp = 1_730_000_000_123_000_000n;
-  const senderBytes = new Array(32).fill(0x22);
   const tokenIdBytes = new Array(32).fill(0x07);
+  const wallet = createFastWallet();
+  const senderBytes = Array.from(Buffer.from(wallet.publicKey, 'hex'));
 
   Date.now = () => 1_730_000_000_123;
 
@@ -168,8 +182,8 @@ test('createFastClient preserves exact timestamp_nanos in submit and evmSign pay
   });
 
   const client = createFastClient({
-    privateKey: '11'.repeat(32),
-    publicKey: '22'.repeat(32),
+    privateKey: wallet.privateKey,
+    publicKey: wallet.publicKey,
   });
 
   const submitResult = await client.submit({

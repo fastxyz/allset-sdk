@@ -1,7 +1,7 @@
 /**
  * bridge.ts — AllSet bridge provider
  *
- * Bridges between Fast chain and EVM chains (Ethereum Sepolia, Arbitrum Sepolia).
+ * Bridges between Fast chain and the SDK's supported EVM routes.
  *
  * Two directions:
  *   Deposit  (EVM → Fast): call bridge.deposit(token, amount, receiver) on the EVM bridge contract

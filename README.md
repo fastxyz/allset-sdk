@@ -1,6 +1,6 @@
 # AllSet SDK
 
-Official TypeScript SDK for the AllSet bridge. Bridge tokens between Fast chain and EVM chains (Arbitrum Sepolia, Ethereum Sepolia).
+Official TypeScript SDK for the AllSet bridge. Bridge tokens between Fast chain and supported EVM routes, with the current branch focused on Arbitrum Sepolia and Fast testnet flows.
 
 ## Install
 
@@ -26,6 +26,7 @@ const result = await allsetProvider.bridge({
   toChain: 'fast',
   fromToken: 'USDC',
   toToken: 'fastUSDC',
+  fromDecimals: 6,
   amount: '1000000', // 1 USDC (6 decimals)
   senderAddress: '0xYourEvmAddress',
   receiverAddress: 'fast1yourfastaddress',
@@ -41,12 +42,8 @@ console.log(result.txHash);
 import { createFastWallet } from '@fastxyz/allset-sdk';
 
 const wallet = createFastWallet();
-console.log(wallet);
-// {
-//   privateKey: '...',
-//   publicKey: '...',
-//   address: 'fast1...'
-// }
+console.log(wallet.address);
+// Persist wallet.privateKey and wallet.publicKey securely.
 ```
 
 Store that keypair securely, then use it with `createFastClient()`:
@@ -64,6 +61,7 @@ const result = await allsetProvider.bridge({
   toChain: 'arbitrum',
   fromToken: 'fastUSDC',
   toToken: 'USDC',
+  fromDecimals: 6,
   amount: '1000000', // 1 USDC (6 decimals)
   senderAddress: fastClient.address!,
   receiverAddress: '0xYourEvmAddress',
@@ -86,11 +84,16 @@ Best practice: generate the Fast wallet once, store the private/public keys in y
 
 ## Supported Networks
 
-| Chain | Network | Chain ID |
-|-------|---------|----------|
-| Arbitrum | Sepolia | 421614 |
-| Ethereum | Sepolia | 11155111 |
-| Fast | Testnet | - |
+Current SDK implementation in this branch:
+
+- Testnet-only bridge flows
+- Arbitrum Sepolia (`421614`) + Fast testnet
+- Token mapping for `USDC` <-> `fastUSDC`
+
+Environment target matrix for AllSet deployments:
+
+- Mainnet: Polygon, Arbitrum, Base with `USDC` -> `fastUSDC`
+- Testnet: Sepolia, Arbitrum Sepolia, Tempo with testnet `USDC` -> `testUSDC`
 
 ## Documentation
 

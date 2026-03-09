@@ -1,7 +1,7 @@
 /**
  * @fastxyz/allset-sdk — AllSet bridge SDK
  *
- * Bridges assets between Fast chain and EVM chains (Arbitrum Sepolia, Ethereum Sepolia).
+ * Bridges assets between Fast chain and supported EVM routes.
  */
 
 export { allsetProvider } from './bridge.js';

@@ -23,8 +23,8 @@ import type { EvmTxExecutor } from './types.js';
  * @example
  * ```ts
  * const wallet = createEvmWallet();
- * console.log(wallet.address);    // 0x...
- * console.log(wallet.privateKey); // 0x... (keep secret!)
+ * console.log(wallet.address); // 0x...
+ * // Persist wallet.privateKey securely. Never log or commit it.
  *
  * // Use with createEvmExecutor
  * const executor = createEvmExecutor(wallet.privateKey, rpcUrl, chainId);
