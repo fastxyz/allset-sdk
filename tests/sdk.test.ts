@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createEvmExecutor, createEvmWallet, allsetProvider } from '../src/index.ts';
+import { createEvmExecutor, createEvmWallet, createFastClient, allsetProvider } from '../src/index.ts';
 
 test('allsetProvider exposes expected metadata', () => {
   assert.equal(allsetProvider.name, 'allset');
@@ -88,4 +88,84 @@ test('createEvmWallet generates valid wallet', () => {
   const wallet2 = createEvmWallet();
   assert.notEqual(wallet.privateKey, wallet2.privateKey, 'should generate unique keys');
   assert.notEqual(wallet.address, wallet2.address, 'should generate unique addresses');
+});
+
+test('createFastClient preserves exact timestamp_nanos in submit and evmSign payloads', async (t) => {
+  const originalFetch = globalThis.fetch;
+  const originalDateNow = Date.now;
+
+  let submitBody = '';
+  let crossSignBody = '';
+
+  const expectedTimestamp = 1_730_000_000_123_000_000n;
+  const senderBytes = new Array(32).fill(0x22);
+  const tokenIdBytes = new Array(32).fill(0x07);
+
+  Date.now = () => 1_730_000_000_123;
+
+  globalThis.fetch = async (_input, init) => {
+    const body = String(init?.body ?? '');
+
+    if (body.includes('"method":"proxy_getAccountInfo"')) {
+      return new Response('{"result":{"next_nonce":7}}', {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (body.includes('"method":"proxy_submitTransaction"')) {
+      submitBody = body;
+      return new Response(
+        `{"result":{"Success":{"envelope":{"transaction":{"sender":[${senderBytes.join(',')}],"recipient":[${senderBytes.join(',')}],"nonce":7,"timestamp_nanos":${expectedTimestamp.toString()},"claim":{"TokenTransfer":{"token_id":[${tokenIdBytes.join(',')}],"amount":"f4240","user_data":null}},"archival":false}}}}}`,
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+    }
+
+    if (body.includes('"method":"crossSign_evmSignCertificate"')) {
+      crossSignBody = body;
+      return Response.json({
+        result: {
+          transaction: [1, 2, 3],
+          signature: '0xabc',
+        },
+      });
+    }
+
+    throw new Error(`Unexpected fetch body: ${body}`);
+  };
+
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    Date.now = originalDateNow;
+  });
+
+  const client = createFastClient({
+    privateKey: '11'.repeat(32),
+    publicKey: '22'.repeat(32),
+  });
+
+  const submitResult = await client.submit({
+    recipient: client.address!,
+    claim: {
+      TokenTransfer: {
+        token_id: Uint8Array.from(tokenIdBytes),
+        amount: '1000000',
+        user_data: null,
+      },
+    },
+  });
+
+  await client.evmSign({ certificate: submitResult.certificate });
+
+  assert.match(submitBody, new RegExp(`"timestamp_nanos":${expectedTimestamp.toString()}`));
+  assert.doesNotMatch(submitBody, /"timestamp_nanos":"\d+"/);
+  assert.match(crossSignBody, new RegExp(`"timestamp_nanos":${expectedTimestamp.toString()}`));
+
+  const certificate = submitResult.certificate as {
+    envelope: { transaction: { timestamp_nanos: bigint } };
+  };
+  assert.equal(certificate.envelope.transaction.timestamp_nanos, expectedTimestamp);
 });

@@ -12,9 +12,10 @@ import { keccak_256 } from '@noble/hashes/sha3.js';
 import { bech32m } from 'bech32';
 import type { FastClient } from './types.js';
 
-// Configure ed25519 for sync operations (TypeScript workaround for @noble/ed25519 v2+)
-(ed.etc as unknown as { sha512Sync: (...m: Uint8Array[]) => Uint8Array }).sha512Sync = 
+// Configure both the v3 hash API and the legacy sync hook for compatibility.
+(ed.etc as unknown as { sha512Sync: (...m: Uint8Array[]) => Uint8Array }).sha512Sync =
   (...m: Uint8Array[]) => sha512(ed.etc.concatBytes(...m));
+ed.hashes.sha512 = sha512;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -34,6 +35,31 @@ function hexToBytes(hex: string): Uint8Array {
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+const BIGINT_MARKER = '__allset_bigint__:';
+
+function stringifyRpcPayload(payload: unknown): string {
+  return JSON.stringify(payload, (_key, value) => {
+    if (value instanceof Uint8Array) return Array.from(value);
+    if (typeof value === 'bigint') return `${BIGINT_MARKER}${value.toString()}`;
+    return value;
+  }).replace(/"__allset_bigint__:(-?\d+)"/g, '$1');
+}
+
+function parseRpcResponse<T>(responseText: string): T {
+  return JSON.parse(
+    responseText.replace(
+      /("timestamp_nanos"\s*:\s*)(\d+)/g,
+      (_match, prefix, digits) => `${prefix}"${BIGINT_MARKER}${digits}"`,
+    ),
+    (_key, value) => {
+      if (typeof value === 'string' && value.startsWith(BIGINT_MARKER)) {
+        return BigInt(value.slice(BIGINT_MARKER.length));
+      }
+      return value;
+    },
+  ) as T;
 }
 
 function pubkeyToFastAddress(pubkey: string): string {
@@ -106,6 +132,9 @@ export interface FastClientOptions {
   crossSignUrl?: string;
 }
 
+type SerializedTransaction = Parameters<typeof TransactionBcs.serialize>[0];
+type SerializedClaim = SerializedTransaction['claim'];
+
 // ─── FastClient Implementation ────────────────────────────────────────────────
 
 /**
@@ -118,8 +147,8 @@ export interface FastClientOptions {
  * @example
  * ```typescript
  * const client = createFastClient({
- *   privateKey: 'REDACTED_FAST_PRIVATE_KEY',
- *   publicKey: 'REDACTED_FAST_PUBLIC_KEY',
+ *   privateKey: process.env.FAST_PRIVATE_KEY!,
+ *   publicKey: process.env.FAST_PUBLIC_KEY!,
  * });
  * ```
  */
@@ -145,10 +174,11 @@ export function createFastClient(options: FastClientOptions): FastClient {
     const response = await fetch(rpcUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: stringifyRpcPayload(payload),
     });
-    const result = await response.json() as { result?: { next_nonce: number } };
-    return result.result?.next_nonce ?? 0;
+    const result = parseRpcResponse<{ result?: { next_nonce?: number | string } }>(await response.text());
+    const nextNonce = result.result?.next_nonce;
+    return nextNonce === undefined ? 0 : Number(nextNonce);
   }
 
   /**
@@ -164,8 +194,10 @@ export function createFastClient(options: FastClientOptions): FastClient {
       throw new Error('Certificate missing envelope.transaction');
     }
 
-    // Clone transaction for normalization
-    const certTx = JSON.parse(JSON.stringify(cert.envelope.transaction));
+    const certTx = structuredClone(cert.envelope.transaction) as SerializedTransaction & {
+      claim?: { TokenTransfer?: { amount?: string | number } };
+      timestamp_nanos?: bigint | string | number;
+    };
 
     // Normalize amount to hex with 0x prefix
     if (certTx.claim?.TokenTransfer?.amount !== undefined) {
@@ -183,10 +215,10 @@ export function createFastClient(options: FastClientOptions): FastClient {
     // for values > Number.MAX_SAFE_INTEGER (9007199254740991)
     const rawTsMatch = responseText.match(/"timestamp_nanos"\s*:\s*(\d+)/);
     if (rawTsMatch) {
-      certTx.timestamp_nanos = '0x' + BigInt(rawTsMatch[1]).toString(16);
+      certTx.timestamp_nanos = BigInt(rawTsMatch[1]);
     } else if (certTx.timestamp_nanos !== undefined) {
       // Fallback - may lose precision for large values
-      certTx.timestamp_nanos = '0x' + BigInt(certTx.timestamp_nanos).toString(16);
+      certTx.timestamp_nanos = BigInt(certTx.timestamp_nanos);
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -204,51 +236,49 @@ export function createFastClient(options: FastClientOptions): FastClient {
       const decoded = bech32m.decode(params.recipient, 90);
       const recipientPubKey = new Uint8Array(bech32m.fromWords(decoded.words));
 
-      // Build transaction
-      let transaction: Record<string, unknown>;
+      const baseTransaction = {
+        sender: publicKeyBytes,
+        recipient: recipientPubKey,
+        nonce,
+        timestamp_nanos: BigInt(Date.now()) * 1_000_000n,
+        archival: false,
+      } satisfies Omit<SerializedTransaction, 'claim'>;
+
+      let claim: SerializedClaim;
 
       if (params.claim.TokenTransfer) {
         const tt = params.claim.TokenTransfer as { token_id: Uint8Array; amount: string; user_data: unknown };
         const hexAmount = BigInt(tt.amount).toString(16);
-        transaction = {
-          sender: Array.from(publicKeyBytes),
-          recipient: Array.from(recipientPubKey),
-          nonce,
-          timestamp_nanos: BigInt(Date.now()) * 1_000_000n,
-          claim: {
-            TokenTransfer: {
-              token_id: Array.from(tt.token_id),
-              amount: hexAmount,
-              user_data: tt.user_data,
-            },
+        claim = {
+          TokenTransfer: {
+            token_id: tt.token_id,
+            amount: hexAmount,
+            user_data: tt.user_data as Uint8Array | null,
           },
-          archival: false,
         };
       } else if (params.claim.ExternalClaim) {
         const ec = params.claim.ExternalClaim as {
-          claim: { verifier_committee: unknown[]; verifier_quorum: number; claim_data: number[] };
-          signatures: unknown[];
+          claim: { verifier_committee?: Uint8Array[]; verifier_quorum?: number; claim_data?: number[] };
+          signatures?: Array<[Uint8Array, Uint8Array]>;
         };
-        transaction = {
-          sender: Array.from(publicKeyBytes),
-          recipient: Array.from(recipientPubKey),
-          nonce,
-          timestamp_nanos: BigInt(Date.now()) * 1_000_000n,
-          claim: {
-            ExternalClaim: {
-              claim: {
-                verifier_committee: ec.claim.verifier_committee || [],
-                verifier_quorum: ec.claim.verifier_quorum || 0,
-                claim_data: ec.claim.claim_data || [],
-              },
-              signatures: ec.signatures || [],
+        claim = {
+          ExternalClaim: {
+            claim: {
+              verifier_committee: ec.claim.verifier_committee ?? [],
+              verifier_quorum: ec.claim.verifier_quorum ?? 0,
+              claim_data: ec.claim.claim_data ?? [],
             },
+            signatures: ec.signatures ?? [],
           },
-          archival: false,
         };
       } else {
         throw new Error('Unsupported claim type: ' + Object.keys(params.claim).join(', '));
       }
+
+      const transaction: SerializedTransaction = {
+        ...baseTransaction,
+        claim,
+      };
 
       // Sign: ed25519("Transaction::" + BCS(transaction))
       const msgHead = new TextEncoder().encode('Transaction::');
@@ -273,18 +303,15 @@ export function createFastClient(options: FastClientOptions): FastClient {
       const response = await fetch(rpcUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload, (_k, v) => {
-          if (typeof v === 'bigint') return Number(v);
-          return v;
-        }),
+        body: stringifyRpcPayload(payload),
       });
 
       // Keep raw response text for precise timestamp_nanos extraction
       const responseText = await response.text();
-      const result = JSON.parse(responseText) as {
+      const result = parseRpcResponse<{
         result?: { Success?: unknown } | unknown;
         error?: { message: string };
-      };
+      }>(responseText);
 
       if (result.error) {
         throw new Error(`Fast RPC error: ${result.error.message}`);
@@ -307,7 +334,7 @@ export function createFastClient(options: FastClientOptions): FastClient {
       const res = await fetch(crossSignUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: stringifyRpcPayload({
           jsonrpc: '2.0',
           id: 1,
           method: 'crossSign_evmSignCertificate',
