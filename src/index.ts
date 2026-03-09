@@ -1,7 +1,7 @@
 /**
  * @fastxyz/allset-sdk — AllSet bridge SDK
  *
- * Bridges assets between Fast chain and supported EVM routes.
+ * Bridges assets between Fast network and supported EVM routes.
  */
 
 export { allsetProvider } from './bridge.js';
