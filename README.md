@@ -38,6 +38,20 @@ console.log(result.txHash);
 ### Withdraw (Fast → EVM)
 
 ```ts
+import { createFastWallet } from '@fastxyz/allset-sdk';
+
+const wallet = createFastWallet();
+console.log(wallet);
+// {
+//   privateKey: '...',
+//   publicKey: '...',
+//   address: 'fast1...'
+// }
+```
+
+Store that keypair securely, then use it with `createFastClient()`:
+
+```ts
 import { createFastClient, allsetProvider } from '@fastxyz/allset-sdk';
 
 const fastClient = createFastClient({
@@ -60,12 +74,15 @@ console.log(result.txHash);
 // { txHash: '0x...', orderId: '0x...', estimatedTime: '1-5 minutes' }
 ```
 
+Best practice: generate the Fast wallet once, store the private/public keys in your secret manager or environment, and pass those stored values into `createFastClient()`. Do not generate a fresh wallet on every app start unless that is explicitly what you want.
+
 ## Features
 
 - **Deposit** - Bridge USDC from EVM chains to fastUSDC on Fast
 - **Withdraw** - Bridge fastUSDC from Fast to USDC on EVM chains
 - **EVM Executor** - Built-in viem-based transaction executor
 - **Fast Client** - Built-in Fast chain client for withdrawals
+- **Fast Wallet Generator** - Generate a Fast keypair and address without another SDK
 
 ## Supported Networks
 

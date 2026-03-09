@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createEvmExecutor, createEvmWallet, createFastClient, allsetProvider } from '../src/index.ts';
+import {
+  createEvmExecutor,
+  createEvmWallet,
+  createFastClient,
+  createFastWallet,
+  allsetProvider,
+} from '../src/index.ts';
 
 test('allsetProvider exposes expected metadata', () => {
   assert.equal(allsetProvider.name, 'allset');
@@ -87,6 +93,25 @@ test('createEvmWallet generates valid wallet', () => {
   // Check that two wallets are different
   const wallet2 = createEvmWallet();
   assert.notEqual(wallet.privateKey, wallet2.privateKey, 'should generate unique keys');
+  assert.notEqual(wallet.address, wallet2.address, 'should generate unique addresses');
+});
+
+test('createFastWallet generates a usable Fast wallet', () => {
+  const wallet = createFastWallet();
+
+  assert.match(wallet.privateKey, /^[0-9a-f]{64}$/i);
+  assert.match(wallet.publicKey, /^[0-9a-f]{64}$/i);
+  assert.ok(wallet.address.startsWith('fast1'), 'address should be a Fast bech32m address');
+
+  const fastClient = createFastClient({
+    privateKey: wallet.privateKey,
+    publicKey: wallet.publicKey,
+  });
+  assert.equal(fastClient.address, wallet.address, 'client address should match generated address');
+
+  const wallet2 = createFastWallet();
+  assert.notEqual(wallet.privateKey, wallet2.privateKey, 'should generate unique private keys');
+  assert.notEqual(wallet.publicKey, wallet2.publicKey, 'should generate unique public keys');
   assert.notEqual(wallet.address, wallet2.address, 'should generate unique addresses');
 });
 

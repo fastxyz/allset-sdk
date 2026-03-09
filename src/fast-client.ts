@@ -132,10 +132,53 @@ export interface FastClientOptions {
   crossSignUrl?: string;
 }
 
+export interface FastWallet {
+  /** Private key as 64 hex chars (32 bytes), without 0x prefix */
+  privateKey: string;
+  /** Public key as 64 hex chars (32 bytes), without 0x prefix */
+  publicKey: string;
+  /** Fast bech32m address derived from the public key */
+  address: string;
+}
+
 type SerializedTransaction = Parameters<typeof TransactionBcs.serialize>[0];
 type SerializedClaim = SerializedTransaction['claim'];
 
 // ─── FastClient Implementation ────────────────────────────────────────────────
+
+/**
+ * Generate a new Fast wallet (private key + public key + address).
+ *
+ * Generate once, store the keys securely, then use them with createFastClient().
+ *
+ * @example
+ * ```typescript
+ * const wallet = createFastWallet();
+ * const fastClient = createFastClient({
+ *   privateKey: wallet.privateKey,
+ *   publicKey: wallet.publicKey,
+ * });
+ * ```
+ */
+export function createFastWallet(): FastWallet {
+  const privateKeyBytes = ed.utils.randomSecretKey();
+  let publicKeyBytes: Uint8Array | null = null;
+
+  try {
+    publicKeyBytes = ed.getPublicKey(privateKeyBytes);
+    const privateKey = bytesToHex(privateKeyBytes);
+    const publicKey = bytesToHex(publicKeyBytes);
+
+    return {
+      privateKey,
+      publicKey,
+      address: pubkeyToFastAddress(publicKey),
+    };
+  } finally {
+    privateKeyBytes.fill(0);
+    publicKeyBytes?.fill(0);
+  }
+}
 
 /**
  * Create a FastClient for interacting with the Fast network.
