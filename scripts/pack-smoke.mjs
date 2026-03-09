@@ -60,7 +60,7 @@ try {
     [
       '--input-type=module',
       '--eval',
-      `import { omnisetProvider, createEvmExecutor } from ${JSON.stringify(manifest.name)}; if (typeof omnisetProvider?.bridge !== "function") throw new Error("omnisetProvider bridge export missing"); if (typeof createEvmExecutor !== "function") throw new Error("createEvmExecutor export missing"); if (omnisetProvider?.name !== "omniset") throw new Error("unexpected omnisetProvider name");`,
+      `import { allsetProvider, createEvmExecutor } from ${JSON.stringify(manifest.name)}; if (typeof allsetProvider?.bridge !== "function") throw new Error("allsetProvider bridge export missing"); if (typeof createEvmExecutor !== "function") throw new Error("createEvmExecutor export missing"); if (allsetProvider?.name !== "allset") throw new Error("unexpected allsetProvider name");`,
     ],
     {
       cwd: tempDir,
