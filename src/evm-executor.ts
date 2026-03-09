@@ -2,6 +2,7 @@
  * evm-executor.ts — Minimal EVM transaction executor using viem
  *
  * Provides sendTx, checkAllowance, and approveErc20 for bridge operations.
+ * Also provides createEvmWallet() to generate a new EVM wallet.
  */
 
 import {
@@ -12,9 +13,33 @@ import {
   type Account,
   type Chain,
 } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { arbitrumSepolia, sepolia } from 'viem/chains';
 import type { EvmTxExecutor } from './types.js';
+
+/**
+ * Generate a new EVM wallet (private key + address).
+ *
+ * @example
+ * ```ts
+ * const wallet = createEvmWallet();
+ * console.log(wallet.address); // 0x...
+ * // Persist wallet.privateKey securely. Never log or commit it.
+ *
+ * // Use with createEvmExecutor
+ * const executor = createEvmExecutor(wallet.privateKey, rpcUrl, chainId);
+ * ```
+ *
+ * @returns Object containing privateKey and address
+ */
+export function createEvmWallet(): { privateKey: `0x${string}`; address: `0x${string}` } {
+  const privateKey = generatePrivateKey();
+  const account = privateKeyToAccount(privateKey);
+  return {
+    privateKey,
+    address: account.address,
+  };
+}
 
 const ERC20_ABI = parseAbi([
   'function approve(address spender, uint256 amount) returns (bool)',

@@ -1,7 +1,7 @@
 /**
- * bridge.ts — OmniSet bridge provider
+ * bridge.ts — AllSet bridge provider
  *
- * Bridges between Fast chain and EVM chains (Ethereum Sepolia, Arbitrum Sepolia).
+ * Bridges between Fast chain and the SDK's supported EVM routes.
  *
  * Two directions:
  *   Deposit  (EVM → Fast): call bridge.deposit(token, amount, receiver) on the EVM bridge contract
@@ -9,33 +9,33 @@
  */
 
 import { bech32m } from 'bech32';
-import { encodeAbiParameters, encodeFunctionData, hashMessage } from 'viem';
+import { encodeAbiParameters, encodeFunctionData } from 'viem';
 import { FastError } from './fast-compat.js';
-import type { BridgeProvider, OmnisetChainConfig, OmnisetTokenInfo } from './types.js';
+import type { BridgeProvider, AllSetChainConfig, AllSetTokenInfo } from './types.js';
 
 function base64ToBytes(b64: string): Uint8Array {
   return new Uint8Array(Buffer.from(b64, 'base64'));
 }
 
-const FAST_USDC_TOKEN_ID = base64ToBytes('HnRJAAIRgrKTU4u2aFt33wleNRNk1VACFhTOkMirngo=');
-const FAST_USDC_TOKEN_HEX = '1e744900021182b29352cbb6685b77df095e35136cd550021614ce928daae782';
+const FAST_USDC_TOKEN_ID = hexToUint8Array('b4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5');
+const FAST_USDC_TOKEN_HEX = 'b4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5';
 
-const CHAIN_CONFIGS: Record<string, OmnisetChainConfig> = {
+const CHAIN_CONFIGS: Record<string, AllSetChainConfig> = {
   ethereum: {
     chainId: 11155111,
     bridgeContract: '0x38b48764f6B12e1Dd5e4f8391d06d34Ba3920201',
     fastsetBridgeAddress: 'fast19cjwajufyuqv883ydlvrp8xrhxejuvfe40pxq5dsrv675zgh89sqg9txs8',
-    relayerUrl: 'https://staging.omniset.fastset.xyz/ethereum-sepolia-relayer',
+    relayerUrl: 'https://staging.omniset.fastset.xyz/ethereum-sepolia-relayer/relay',
   },
   arbitrum: {
     chainId: 421614,
-    bridgeContract: '0xBb9111E62c9EE364cF6dc676d754602a2E259bd3',
-    fastsetBridgeAddress: 'fast1pz07pdlspsydyt2g79yeshunhfyjsr5j4ahuyfv8hpdn00ks8u6q8axf9t',
-    relayerUrl: 'https://staging.omniset.fastset.xyz/arbitrum-sepolia-relayer',
+    bridgeContract: '0xAc5164c04ee74c417e809916C65455499ae70eb6',
+    fastsetBridgeAddress: 'fast1x0g58phuf0pf32e9uvp3mv6hak4z37ytpqyfzjzhfsehua9kmegqwzv0td',
+    relayerUrl: 'https://staging.allset.fastset.xyz/arbitrum-sepolia/relayer/relay',
   },
 };
 
-const CHAIN_TOKENS: Record<string, Record<string, OmnisetTokenInfo>> = {
+const CHAIN_TOKENS: Record<string, Record<string, AllSetTokenInfo>> = {
   arbitrum: {
     USDC: {
       evmAddress: '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d',
@@ -52,7 +52,7 @@ const CHAIN_TOKENS: Record<string, Record<string, OmnisetTokenInfo>> = {
   },
 };
 
-function resolveOmnisetToken(token: string, evmChain: string): OmnisetTokenInfo | null {
+function resolveAllSetToken(token: string, evmChain: string): AllSetTokenInfo | null {
   const chainTokens = CHAIN_TOKENS[evmChain];
   if (!chainTokens) return null;
 
@@ -98,8 +98,8 @@ const BRIDGE_DEPOSIT_ABI = [{
   stateMutability: 'payable' as const,
 }];
 
-export const omnisetProvider: BridgeProvider = {
-  name: 'omniset',
+export const allsetProvider: BridgeProvider = {
+  name: 'allset',
   chains: ['fast', 'ethereum', 'arbitrum'],
   networks: ['testnet'],
 
@@ -111,7 +111,7 @@ export const omnisetProvider: BridgeProvider = {
       if (!isDeposit && !isWithdraw) {
         throw new FastError(
           'UNSUPPORTED_OPERATION',
-          `OmniSet only supports bridging between Fast chain and EVM chains (ethereum, arbitrum). Got: ${params.fromChain} → ${params.toChain}`,
+          `AllSet only supports bridging between Fast chain and EVM chains (ethereum, arbitrum). Got: ${params.fromChain} → ${params.toChain}`,
           {
             note: 'Use fromChain: "fast" for withdrawals, or toChain: "fast" for deposits.\n  Example: await allset.bridge({ fromChain: "ethereum", toChain: "fast", fromToken: "USDC", toToken: "fastUSDC", amount: "1000000", senderAddress: "0x...", receiverAddress: "fast1..." })',
           },
@@ -122,7 +122,7 @@ export const omnisetProvider: BridgeProvider = {
         if (!params.evmExecutor) {
           throw new FastError(
             'INVALID_PARAMS',
-            'OmniSet deposit (EVM → Fast) requires evmExecutor',
+            'AllSet deposit (EVM → Fast) requires evmExecutor',
             {
               note: 'Provide an evmExecutor created with createEvmExecutor().\n  Example: const executor = createEvmExecutor(privateKey, rpcUrl, chainId)',
             },
@@ -133,21 +133,21 @@ export const omnisetProvider: BridgeProvider = {
         if (!chainConfig) {
           throw new FastError(
             'UNSUPPORTED_OPERATION',
-            `OmniSet does not support EVM chain "${params.fromChain}". Supported: ${Object.keys(CHAIN_CONFIGS).join(', ')}`,
+            `AllSet does not support EVM chain "${params.fromChain}". Supported: ${Object.keys(CHAIN_CONFIGS).join(', ')}`,
             {
-              note: 'Use "ethereum" or "arbitrum" as the source chain for OmniSet deposits.',
+              note: 'Use "ethereum" or "arbitrum" as the source chain for AllSet deposits.',
             },
           );
         }
 
-        let tokenInfo = resolveOmnisetToken(params.fromToken, params.fromChain);
+        let tokenInfo = resolveAllSetToken(params.fromToken, params.fromChain);
         if (!tokenInfo) {
-          tokenInfo = resolveOmnisetToken(params.toToken, params.fromChain);
+          tokenInfo = resolveAllSetToken(params.toToken, params.fromChain);
         }
         if (!tokenInfo) {
           throw new FastError(
             'TOKEN_NOT_FOUND',
-            `Cannot resolve token "${params.fromToken}" on OmniSet for chain "${params.fromChain}".`,
+            `Cannot resolve token "${params.fromToken}" on AllSet for chain "${params.fromChain}".`,
             {
               note: 'Supported tokens: USDC, fastUSDC.\n  Example: await allset.bridge({ fromChain: "arbitrum", toChain: "fast", fromToken: "USDC", toToken: "fastUSDC", amount: "1000000", senderAddress: "0x...", receiverAddress: "fast1..." })',
             },
@@ -189,7 +189,7 @@ export const omnisetProvider: BridgeProvider = {
           if (receipt.status === 'reverted') {
             throw new FastError(
               'TX_FAILED',
-              `OmniSet deposit transaction reverted: ${receipt.txHash}`,
+              `AllSet deposit transaction reverted: ${receipt.txHash}`,
               {
                 note: 'The deposit transaction was reverted. Check that you have sufficient ETH balance.',
               },
@@ -219,7 +219,7 @@ export const omnisetProvider: BridgeProvider = {
           if (receipt.status === 'reverted') {
             throw new FastError(
               'TX_FAILED',
-              `OmniSet deposit transaction reverted: ${receipt.txHash}`,
+              `AllSet deposit transaction reverted: ${receipt.txHash}`,
               {
                 note: 'The deposit transaction was reverted. Check that you have sufficient token balance and the approval succeeded.',
               },
@@ -238,7 +238,7 @@ export const omnisetProvider: BridgeProvider = {
       if (!params.fastClient) {
         throw new FastError(
           'INVALID_PARAMS',
-          'OmniSet withdrawal (Fast → EVM) requires fastClient',
+          'AllSet withdrawal (Fast → EVM) requires fastClient',
           {
             note: 'Provide a compatible FastClient implementation with submit() and evmSign().',
           },
@@ -249,21 +249,21 @@ export const omnisetProvider: BridgeProvider = {
       if (!chainConfig) {
         throw new FastError(
           'UNSUPPORTED_OPERATION',
-          `OmniSet does not support EVM destination chain "${params.toChain}". Supported: ${Object.keys(CHAIN_CONFIGS).join(', ')}`,
+          `AllSet does not support EVM destination chain "${params.toChain}". Supported: ${Object.keys(CHAIN_CONFIGS).join(', ')}`,
           {
-            note: 'Use "ethereum" or "arbitrum" as the destination chain for OmniSet withdrawals.',
+            note: 'Use "ethereum" or "arbitrum" as the destination chain for AllSet withdrawals.',
           },
         );
       }
 
-      let tokenInfo = resolveOmnisetToken(params.fromToken, params.toChain);
+      let tokenInfo = resolveAllSetToken(params.fromToken, params.toChain);
       if (!tokenInfo) {
-        tokenInfo = resolveOmnisetToken(params.toToken, params.toChain);
+        tokenInfo = resolveAllSetToken(params.toToken, params.toChain);
       }
       if (!tokenInfo) {
         throw new FastError(
           'TOKEN_NOT_FOUND',
-          `Cannot resolve token "${params.fromToken}" on OmniSet for destination chain "${params.toChain}".`,
+          `Cannot resolve token "${params.fromToken}" on AllSet for destination chain "${params.toChain}".`,
           {
             note: 'Supported tokens: USDC, fastUSDC.\n  Example: await allset.bridge({ fromChain: "fast", toChain: "arbitrum", fromToken: "fastUSDC", toToken: "USDC", amount: "1000000", senderAddress: "fast1...", receiverAddress: "0x..." })',
           },
@@ -287,9 +287,9 @@ export const omnisetProvider: BridgeProvider = {
         certificate: transferResult.certificate,
       });
 
-      const transferClaimHash = hashMessage({
-        raw: new Uint8Array(transferCrossSign.transaction),
-      });
+      // Use the transaction hash directly (keccak256 of BCS-serialized transaction)
+      // This matches how x402-sdk and AllSetPortal compute the transfer ID
+      const transferFastTxId = transferResult.txHash as `0x${string}`;
 
       const dynamicTransferPayload = encodeAbiParameters(
         [{ type: 'address' }, { type: 'address' }],
@@ -299,11 +299,15 @@ export const omnisetProvider: BridgeProvider = {
         ],
       );
 
+      // Deadline: 1 hour from now
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
+
       const intentClaimEncoded = encodeAbiParameters(
         [{
           type: 'tuple',
           components: [
-            { name: 'transferClaimHash', type: 'bytes32' },
+            { name: 'transferFastTxId', type: 'bytes32' },
+            { name: 'deadline', type: 'uint256' },
             {
               name: 'intents',
               type: 'tuple[]',
@@ -316,7 +320,8 @@ export const omnisetProvider: BridgeProvider = {
           ],
         }],
         [{
-          transferClaimHash: transferClaimHash as `0x${string}`,
+          transferFastTxId,
+          deadline,
           intents: [{
             action: 1,
             payload: dynamicTransferPayload,
@@ -348,11 +353,13 @@ export const omnisetProvider: BridgeProvider = {
       const relayerBody = {
         encoded_transfer_claim: Array.from(new Uint8Array(transferCrossSign.transaction.map(Number))),
         transfer_proof: transferCrossSign.signature,
+        transfer_fast_tx_id: transferResult.txHash,
         transfer_claim_id: transferResult.txHash,
         fastset_address: params.senderAddress,
         external_address: params.receiverAddress,
         encoded_intent_claim: Array.from(new Uint8Array(intentCrossSign.transaction.map(Number))),
         intent_proof: intentCrossSign.signature,
+        intent_fast_tx_id: intentResult.txHash,
         intent_claim_id: intentResult.txHash,
         external_token_address: evmTokenAddress,
       };
@@ -367,7 +374,7 @@ export const omnisetProvider: BridgeProvider = {
         const text = await relayRes.text();
         throw new FastError(
           'TX_FAILED',
-          `OmniSet relayer request failed (${relayRes.status}): ${text}`,
+          `AllSet relayer request failed (${relayRes.status}): ${text}`,
           {
             note: 'The withdrawal was submitted to Fast chain but the relayer rejected it. Try again.',
           },
@@ -376,7 +383,7 @@ export const omnisetProvider: BridgeProvider = {
 
       return {
         txHash: transferResult.txHash,
-        orderId: transferClaimHash,
+        orderId: transferFastTxId,
         estimatedTime: '1-5 minutes',
       };
     } catch (err: unknown) {
@@ -384,7 +391,7 @@ export const omnisetProvider: BridgeProvider = {
       const msg = err instanceof Error ? err.message : String(err);
       throw new FastError(
         'TX_FAILED',
-        `OmniSet bridge failed: ${msg}`,
+        `AllSet bridge failed: ${msg}`,
         {
           note: 'Check that both chains are configured and have sufficient balance.',
         },
