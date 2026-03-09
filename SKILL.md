@@ -1,8 +1,11 @@
 ---
 name: allset-sdk
-description: Integrates and troubleshoots the Pi2Labs AllSet SDK for AllSet bridge flows between Fast and EVM testnets. Use when the user asks to bridge USDC or fastUSDC between Fast and Arbitrum Sepolia, wire createEvmExecutor, supply a compatible fastClient for withdrawals, add examples or scripts around allsetProvider.bridge, or debug errors such as TOKEN_NOT_FOUND, INVALID_ADDRESS, INVALID_PARAMS, UNSUPPORTED_OPERATION, and relayer or transaction failures.
+description: >
+  AllSet SDK for bridging tokens between Fast chain and EVM chains. Use when the user asks to bridge
+  USDC or fastUSDC between Fast and Arbitrum/Ethereum Sepolia, wire createEvmExecutor or createFastClient,
+  add examples or scripts around allsetProvider.bridge, or debug bridge errors such as TOKEN_NOT_FOUND,
+  INVALID_ADDRESS, INVALID_PARAMS, UNSUPPORTED_OPERATION, and relayer or transaction failures.
 metadata:
-  author: Pi2Labs
   version: 0.1.0
 ---
 
@@ -17,9 +20,9 @@ It assumes Node.js 18+ and network access to EVM RPC endpoints and AllSet relaye
 This package exports:
 
 - `allsetProvider`: the bridge provider with `bridge(...)`
-- `createEvmExecutor(privateKey, rpcUrl, chainId)`: a minimal viem-based EVM executor
-
-This repo is intentionally standalone. It does not bundle the Fast SDK. For Fast to EVM withdrawals, callers must provide a compatible `fastClient` object that implements the interface in `src/types.ts`.
+- `createEvmExecutor(privateKey, rpcUrl, chainId)`: a viem-based EVM transaction executor
+- `createFastClient(options)`: a Fast chain client for withdrawals
+- `createEvmWallet()`: utility to generate new EVM wallets
 
 ## Current Support Matrix
 
@@ -70,7 +73,7 @@ For EVM to Fast deposits:
 Example:
 
 ```ts
-import { createEvmExecutor, allsetProvider } from '@fast/allset-sdk';
+import { createEvmExecutor, allsetProvider } from '@fastxyz/allset-sdk';
 
 const evmExecutor = createEvmExecutor(
   process.env.EVM_PRIVATE_KEY!,
@@ -101,7 +104,7 @@ For Fast to EVM withdrawals:
 Example:
 
 ```ts
-import { allsetProvider } from '@fast/allset-sdk';
+import { allsetProvider } from '@fastxyz/allset-sdk';
 
 const result = await allsetProvider.bridge({
   fromChain: 'fast',

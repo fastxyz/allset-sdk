@@ -1,41 +1,24 @@
 # AllSet SDK
 
-Standalone AllSet SDK extracted from `/Users/chris/Documents/Workspace/money`.
-
-This repo contains only `@fast/allset-sdk`. It does not include the Fast SDK package or the old workspace wiring from the `money` monorepo.
+Official TypeScript SDK for the AllSet bridge. Bridge tokens between Fast chain and EVM chains (Arbitrum Sepolia, Ethereum Sepolia).
 
 ## Install
 
 ```bash
-npm install @fast/allset-sdk
+npm install @fastxyz/allset-sdk
 ```
 
-## Development
-
-```bash
-npm install
-```
-
-## Scripts
-
-```bash
-npm run build
-npm test
-npm run pack:dry-run
-npm run pack:smoke
-```
-
-## Usage
+## Quick Start
 
 ### Deposit (EVM → Fast)
 
 ```ts
-import { createEvmExecutor, allsetProvider } from '@fast/allset-sdk';
+import { createEvmExecutor, allsetProvider } from '@fastxyz/allset-sdk';
 
 const evmExecutor = createEvmExecutor(
   process.env.EVM_PRIVATE_KEY!,
-  process.env.ARBITRUM_SEPOLIA_RPC_URL!,
-  421614,
+  'https://sepolia-rollup.arbitrum.io/rpc',
+  421614
 );
 
 const result = await allsetProvider.bridge({
@@ -43,25 +26,23 @@ const result = await allsetProvider.bridge({
   toChain: 'fast',
   fromToken: 'USDC',
   toToken: 'fastUSDC',
-  fromDecimals: 6,
-  amount: '1000000',
+  amount: '1000000', // 1 USDC (6 decimals)
   senderAddress: '0xYourEvmAddress',
   receiverAddress: 'fast1yourfastaddress',
   evmExecutor,
 });
 
-console.log(result);
+console.log(result.txHash);
 ```
 
 ### Withdraw (Fast → EVM)
 
 ```ts
-import { createFastClient, allsetProvider } from '@fast/allset-sdk';
+import { createFastClient, allsetProvider } from '@fastxyz/allset-sdk';
 
-// Create FastClient with your wallet keys
 const fastClient = createFastClient({
-  privateKey: process.env.FAST_PRIVATE_KEY!, // 32 bytes as hex
-  publicKey: process.env.FAST_PUBLIC_KEY!,   // 32 bytes as hex
+  privateKey: process.env.FAST_PRIVATE_KEY!, // 32-byte hex
+  publicKey: process.env.FAST_PUBLIC_KEY!,   // 32-byte hex
 });
 
 const result = await allsetProvider.bridge({
@@ -69,34 +50,43 @@ const result = await allsetProvider.bridge({
   toChain: 'arbitrum',
   fromToken: 'fastUSDC',
   toToken: 'USDC',
-  fromDecimals: 6,
   amount: '1000000', // 1 USDC (6 decimals)
   senderAddress: fastClient.address!,
   receiverAddress: '0xYourEvmAddress',
   fastClient,
 });
 
-console.log(result);
+console.log(result.txHash);
 // { txHash: '0x...', orderId: '0x...', estimatedTime: '1-5 minutes' }
 ```
 
-## ⚠️ Important: timestamp_nanos Precision
+## Features
 
-The `createFastClient()` implementation properly handles JavaScript's integer precision limits.
-The `timestamp_nanos` field can exceed `Number.MAX_SAFE_INTEGER` (9007199254740991), causing
-precision loss when parsed with `JSON.parse()`.
+- **Deposit** - Bridge USDC from EVM chains to fastUSDC on Fast
+- **Withdraw** - Bridge fastUSDC from Fast to USDC on EVM chains
+- **EVM Executor** - Built-in viem-based transaction executor
+- **Fast Client** - Built-in Fast chain client for withdrawals
 
-If you implement your own `FastClient`, you MUST extract `timestamp_nanos` from the raw
-response text BEFORE JSON parsing to compute correct transaction hashes. Incorrect hashes
-cause on-chain verification failure (error `0x36289cf3`).
+## Supported Networks
 
-## Current Scope
+| Chain | Network | Chain ID |
+|-------|---------|----------|
+| Arbitrum | Sepolia | 421614 |
+| Ethereum | Sepolia | 11155111 |
+| Fast | Testnet | - |
 
-- Testnet only (staging environment)
-- Fast ↔ EVM flows (deposit and withdraw)
-- Supported chains: Ethereum Sepolia (`11155111`), Arbitrum Sepolia (`421614`)
-- Supported tokens: `USDC`, `fastUSDC`
+## Documentation
 
-## Releasing
+See [SKILL.md](./SKILL.md) for detailed API documentation and troubleshooting.
 
-See `RELEASING.md` for the tag-driven npm release flow and the npm trusted publishing setup this repo expects.
+## Development
+
+```bash
+npm install
+npm run build
+npm test
+```
+
+## License
+
+MIT
