@@ -12,8 +12,9 @@ import { keccak_256 } from '@noble/hashes/sha3.js';
 import { bech32m } from 'bech32';
 import type { FastClient } from './types.js';
 
-// Configure ed25519
-ed.etc.sha512Sync = (...m: Uint8Array[]) => sha512(ed.etc.concatBytes(...m));
+// Configure ed25519 for sync operations (TypeScript workaround for @noble/ed25519 v2+)
+(ed.etc as unknown as { sha512Sync: (...m: Uint8Array[]) => Uint8Array }).sha512Sync = 
+  (...m: Uint8Array[]) => sha512(ed.etc.concatBytes(...m));
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -188,7 +189,8 @@ export function createFastClient(options: FastClientOptions): FastClient {
       certTx.timestamp_nanos = '0x' + BigInt(certTx.timestamp_nanos).toString(16);
     }
 
-    const certTxBytes = TransactionBcs.serialize(certTx).toBytes();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const certTxBytes = TransactionBcs.serialize(certTx as any).toBytes();
     return '0x' + bytesToHex(keccak_256(certTxBytes));
   }
 
@@ -250,7 +252,8 @@ export function createFastClient(options: FastClientOptions): FastClient {
 
       // Sign: ed25519("Transaction::" + BCS(transaction))
       const msgHead = new TextEncoder().encode('Transaction::');
-      const msgBody = TransactionBcs.serialize(transaction).toBytes();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const msgBody = TransactionBcs.serialize(transaction as any).toBytes();
       const msg = new Uint8Array(msgHead.length + msgBody.length);
       msg.set(msgHead, 0);
       msg.set(msgBody, msgHead.length);
