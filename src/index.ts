@@ -1,16 +1,19 @@
 /**
- * @fastxyz/allset-sdk — OmniSet bridge SDK
+ * @fastxyz/allset-sdk — AllSet bridge SDK
  *
- * Bridges assets between Fast chain and EVM chains (Arbitrum Sepolia, Ethereum Sepolia).
+ * Bridges assets between Fast chain and supported EVM routes.
  */
 
-export { omnisetProvider } from './bridge.js';
-export { createEvmExecutor } from './evm-executor.js';
+export { allsetProvider } from './bridge.js';
+export { createEvmExecutor, createEvmWallet } from './evm-executor.js';
+export { createFastClient, createFastWallet } from './fast-client.js';
 
 export type {
   BridgeProvider,
   EvmTxExecutor,
   FastClient,
-  OmnisetChainConfig,
-  OmnisetTokenInfo,
+  AllSetChainConfig,
+  AllSetTokenInfo,
 } from './types.js';
+
+export type { FastClientOptions, FastWallet } from './fast-client.js';

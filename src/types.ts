@@ -48,14 +48,14 @@ export interface BridgeProvider {
   }>;
 }
 
-export interface OmnisetChainConfig {
+export interface AllSetChainConfig {
   chainId: number;
   bridgeContract: string;
   fastsetBridgeAddress: string;
   relayerUrl: string;
 }
 
-export interface OmnisetTokenInfo {
+export interface AllSetTokenInfo {
   evmAddress: string;
   fastsetTokenId: Uint8Array;
   decimals: number;
