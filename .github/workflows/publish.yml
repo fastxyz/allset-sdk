@@ -46,4 +46,5 @@ jobs:
         run: npm run pack:smoke
 
       - name: Publish to npm
+        # Trusted publishing: no NPM_TOKEN secret; npm exchanges the GitHub OIDC token.
         run: npm publish --access public --provenance
