@@ -87,7 +87,91 @@ Classify the task first:
 
 Do not start coding until you confirm the requested chain, token, and direction are actually supported by the current implementation.
 
-### 2. Creating EVM Wallets
+### 2. Setting up AllSetProvider
+
+The `AllSetProvider` manages network configuration. There are multiple ways to set it up:
+
+#### Default setup (testnet)
+
+```ts
+import { AllSetProvider } from '@fastxyz/allset-sdk';
+
+const provider = new AllSetProvider();
+// Uses bundled data/networks.json with testnet config
+```
+
+#### Mainnet setup
+
+```ts
+const provider = new AllSetProvider({ network: 'mainnet' });
+```
+
+#### Custom config file
+
+```ts
+const provider = new AllSetProvider({ 
+  configPath: './my-networks.json' 
+});
+```
+
+#### Override cross-sign URL
+
+```ts
+const provider = new AllSetProvider({ 
+  network: 'testnet',
+  crossSignUrl: 'https://my-custom-cross-sign.example.com' 
+});
+```
+
+#### Configuration loading order
+
+The SDK loads configuration in this priority order (first found wins):
+
+1. **Custom path** — If `configPath` is provided in options
+2. **User override** — `~/.allset/networks.json` (if exists)
+3. **Bundled default** — `data/networks.json` in the package
+
+This allows users to customize config without modifying the package:
+
+```ts
+import { initUserConfig } from '@fastxyz/allset-sdk';
+
+// Copy bundled config to ~/.allset/networks.json for customization
+initUserConfig();
+// Then edit ~/.allset/networks.json with your custom values
+```
+
+#### Directory structure
+
+```
+~/.allset/
+├── networks.json          # Custom network config (overrides bundled)
+└── .evm/
+    └── keys/
+        └── default.json   # EVM wallet keyfiles
+```
+
+#### Accessing configuration
+
+```ts
+const provider = new AllSetProvider();
+
+// List supported chains
+console.log(provider.chains); // ['ethereum', 'arbitrum']
+
+// Get cross-sign URL
+console.log(provider.crossSignUrl);
+
+// Get chain config
+const arbConfig = provider.getChainConfig('arbitrum');
+// { chainId: 421614, bridgeContract: '0x...', fastBridgeAddress: 'fast1...', relayerUrl: '...' }
+
+// Get token config (handles fastUSDC → USDC normalization)
+const usdcConfig = provider.getTokenConfig('arbitrum', 'USDC');
+// { evmAddress: '0x...', fastTokenId: '...', decimals: 6 }
+```
+
+### 3. Creating EVM Wallets
 
 The `createEvmWallet()` function supports multiple patterns — generate, derive from key, or load from file:
 
@@ -100,7 +184,7 @@ const wallet = createEvmWallet();
 console.log('Address:', wallet.address);
 
 // Save to file for later use
-saveEvmWallet(wallet, '~/.evm/keys/default.json');
+saveEvmWallet(wallet, '~/.allset/.evm/keys/default.json');
 ```
 
 #### Derive from an existing private key
@@ -119,7 +203,7 @@ console.log('Address:', wallet.address);
 import { createEvmWallet } from '@fastxyz/allset-sdk';
 
 // Load from JSON file (auto-detected by path)
-const wallet = createEvmWallet('~/.evm/keys/default.json');
+const wallet = createEvmWallet('~/.allset/.evm/keys/default.json');
 console.log('Address:', wallet.address);
 ```
 
@@ -146,10 +230,10 @@ console.log('Fast address:', fastWallet.address);
 console.log('EVM address:', evmWallet.address);
 
 // Optionally save the derived EVM wallet
-saveEvmWallet(evmWallet, '~/.evm/keys/same-key.json');
+saveEvmWallet(evmWallet, '~/.allset/.evm/keys/same-key.json');
 ```
 
-### 3. Use the correct execution path
+### 4. Use the correct execution path
 
 #### Deposit (EVM → Fast)
 
@@ -238,7 +322,7 @@ const result = await allsetProvider.bridge({
 });
 ```
 
-### 4. Respect implementation details
+### 5. Respect implementation details
 
 When reasoning about behavior, use the code as the source of truth:
 
@@ -249,7 +333,7 @@ When reasoning about behavior, use the code as the source of truth:
 
 Do not invent additional token aliases, chain IDs, or mainnet support.
 
-### 5. Validate after edits
+### 6. Validate after edits
 
 If you change code in this repo:
 
@@ -399,7 +483,7 @@ const newWallet = createEvmWallet();
 const derivedWallet = createEvmWallet('0x1234...64hexchars...');
 
 // Load from file
-const loadedWallet = createEvmWallet('~/.evm/keys/default.json');
+const loadedWallet = createEvmWallet('~/.allset/.evm/keys/default.json');
 ```
 
 ### `saveEvmWallet(wallet, path)`
@@ -419,10 +503,10 @@ Creates parent directories if they don't exist. File permissions are set to `060
 
 ```ts
 const wallet = createEvmWallet();
-saveEvmWallet(wallet, '~/.evm/keys/default.json');
+saveEvmWallet(wallet, '~/.allset/.evm/keys/default.json');
 
 // Later, load it back
-const loaded = createEvmWallet('~/.evm/keys/default.json');
+const loaded = createEvmWallet('~/.allset/.evm/keys/default.json');
 ```
 
 ### `evmSign(certificate, crossSignUrl?)`

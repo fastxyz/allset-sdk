@@ -10,21 +10,6 @@ npm install @fastxyz/sdk @fastxyz/allset-sdk
 
 ## Quick Start
 
-### Setup
-
-```ts
-import { FastProvider, FastWallet } from '@fastxyz/sdk';
-import { AllSetProvider, createEvmWallet, saveEvmWallet } from '@fastxyz/allset-sdk';
-
-// Create providers
-const fastProvider = new FastProvider({ network: 'testnet' });
-const allsetProvider = new AllSetProvider({ network: 'testnet' });
-
-// Create or load wallets
-const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);
-const evmWallet = createEvmWallet('~/.allset/.evm/keys/default.json');
-```
-
 ### Deposit (EVM → Fast)
 
 ```ts
@@ -42,7 +27,7 @@ const result = await allsetProvider.bridge({
   fromToken: 'USDC',
   toToken: 'fastUSDC',
   fromDecimals: 6,
-  amount: '1000000', // 1 USDC
+  amount: '1000000',
   senderAddress: '0xYourEvmAddress',
   receiverAddress: 'fast1yourfastaddress',
   evmExecutor,
@@ -64,76 +49,11 @@ const result = await allsetProvider.bridge({
   fromToken: 'fastUSDC',
   toToken: 'USDC',
   fromDecimals: 6,
-  amount: '1000000', // 1 fastUSDC
+  amount: '1000000',
   senderAddress: fastWallet.address,
   receiverAddress: '0xYourEvmAddress',
   fastWallet,
 });
-```
-
-## Directory Structure
-
-```
-~/.allset/
-├── networks.json          # Custom network config (optional)
-└── .evm/
-    └── keys/
-        └── default.json   # EVM wallet keyfiles
-```
-
-## Configuration
-
-### Using AllSetProvider
-
-```ts
-import { AllSetProvider } from '@fastxyz/allset-sdk';
-
-// Default (testnet)
-const provider = new AllSetProvider();
-
-// Mainnet
-const provider = new AllSetProvider({ network: 'mainnet' });
-
-// Custom config file
-const provider = new AllSetProvider({ configPath: './my-config.json' });
-
-// Access config
-console.log(provider.chains);           // ['ethereum', 'arbitrum']
-console.log(provider.crossSignUrl);     // 'https://...'
-provider.getChainConfig('arbitrum');    // { chainId, bridgeContract, ... }
-provider.getTokenConfig('arbitrum', 'USDC'); // { evmAddress, fastTokenId, ... }
-```
-
-### Custom Configuration
-
-Copy the default config to your home directory:
-
-```ts
-import { initUserConfig } from '@fastxyz/allset-sdk';
-
-initUserConfig(); // Creates ~/.allset/networks.json
-```
-
-Then edit `~/.allset/networks.json` with your custom URLs or contract addresses.
-
-## EVM Wallets
-
-```ts
-import { createEvmWallet, saveEvmWallet } from '@fastxyz/allset-sdk';
-
-// Generate new wallet
-const wallet = createEvmWallet();
-saveEvmWallet(wallet, '~/.allset/.evm/keys/default.json');
-
-// Load from file
-const loaded = createEvmWallet('~/.allset/.evm/keys/default.json');
-
-// Derive from private key
-const derived = createEvmWallet('0x1234...');
-
-// Same-key pattern (from Fast wallet)
-const keys = await fastWallet.exportKeys();
-const evmWallet = createEvmWallet(keys.privateKey);
 ```
 
 ## Supported Networks
@@ -146,7 +66,7 @@ const evmWallet = createEvmWallet(keys.privateKey);
 
 ## Documentation
 
-See [SKILL.md](./SKILL.md) for detailed API documentation and troubleshooting.
+See [SKILL.md](./SKILL.md) for detailed API documentation, configuration options, and troubleshooting.
 
 ## License
 
