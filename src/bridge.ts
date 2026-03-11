@@ -181,50 +181,77 @@ export async function evmSign(
   return json.result;
 }
 
-// ─── AllSet Bridge Provider ───────────────────────────────────────────────────
+// ─── Bridge Execution ─────────────────────────────────────────────────────────
 
+/**
+ * Provider interface for bridge configuration.
+ * Matches AllSetProvider from provider.ts (defined here to avoid circular import).
+ */
+interface BridgeProviderConfig {
+  network: 'testnet' | 'mainnet';
+  crossSignUrl: string;
+  getChainConfig(chain: string): { chainId: number; bridgeContract: string; fastBridgeAddress: string; relayerUrl: string; tokens: Record<string, { evmAddress: string; fastTokenId: string; decimals: number }> } | null;
+  getTokenConfig(chain: string, token: string): { evmAddress: string; fastTokenId: string; decimals: number } | null;
+}
+
+/**
+ * Execute a bridge operation with optional provider configuration.
+ * Called by AllSetProvider.bridge() or directly via allsetProvider singleton.
+ */
+export async function executeBridge(params: BridgeParams, provider?: BridgeProviderConfig): Promise<BridgeResult> {
+  const network = provider?.network ?? DEFAULT_NETWORK;
+  
+  try {
+    const isDeposit = params.fromChain !== 'fast' && params.toChain === 'fast';
+    const isWithdraw = params.fromChain === 'fast';
+
+    if (!isDeposit && !isWithdraw) {
+      throw new FastError(
+        'UNSUPPORTED_OPERATION',
+        `AllSet only supports bridging between Fast network and EVM chains (ethereum, arbitrum). Got: ${params.fromChain} → ${params.toChain}`,
+        {
+          note: 'Use fromChain: "fast" for withdrawals, or toChain: "fast" for deposits.\n  Example: await allset.bridge({ fromChain: "ethereum", toChain: "fast", fromToken: "USDC", toToken: "fastUSDC", amount: "1000000", senderAddress: "0x...", receiverAddress: "fast1..." })',
+        },
+      );
+    }
+
+    if (isDeposit) {
+      return await handleDeposit(params, network, provider?.crossSignUrl);
+    }
+
+    return await handleWithdraw(params, network, provider?.crossSignUrl);
+  } catch (err: unknown) {
+    if (err instanceof FastError) throw err;
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new FastError(
+      'TX_FAILED',
+      `AllSet bridge failed: ${msg}`,
+      {
+        note: 'Check that both chains are configured and have sufficient balance.',
+      },
+    );
+  }
+}
+
+// ─── Backwards Compatible Singleton ───────────────────────────────────────────
+
+/**
+ * Default bridge provider singleton (backwards compatible).
+ * For configurable usage, use AllSetProvider instead.
+ */
 export const allsetProvider: BridgeProvider = {
   name: 'allset',
   chains: ['fast', 'ethereum', 'arbitrum'],
   networks: ['testnet'],
 
   async bridge(params: BridgeParams): Promise<BridgeResult> {
-    try {
-      const isDeposit = params.fromChain !== 'fast' && params.toChain === 'fast';
-      const isWithdraw = params.fromChain === 'fast';
-
-      if (!isDeposit && !isWithdraw) {
-        throw new FastError(
-          'UNSUPPORTED_OPERATION',
-          `AllSet only supports bridging between Fast network and EVM chains (ethereum, arbitrum). Got: ${params.fromChain} → ${params.toChain}`,
-          {
-            note: 'Use fromChain: "fast" for withdrawals, or toChain: "fast" for deposits.\n  Example: await allset.bridge({ fromChain: "ethereum", toChain: "fast", fromToken: "USDC", toToken: "fastUSDC", amount: "1000000", senderAddress: "0x...", receiverAddress: "fast1..." })',
-          },
-        );
-      }
-
-      if (isDeposit) {
-        return await handleDeposit(params);
-      }
-
-      return await handleWithdraw(params);
-    } catch (err: unknown) {
-      if (err instanceof FastError) throw err;
-      const msg = err instanceof Error ? err.message : String(err);
-      throw new FastError(
-        'TX_FAILED',
-        `AllSet bridge failed: ${msg}`,
-        {
-          note: 'Check that both chains are configured and have sufficient balance.',
-        },
-      );
-    }
+    return executeBridge(params);
   },
 };
 
 // ─── Deposit (EVM → Fast) ─────────────────────────────────────────────────────
 
-async function handleDeposit(params: BridgeParams): Promise<BridgeResult> {
+async function handleDeposit(params: BridgeParams, network: 'testnet' | 'mainnet' = DEFAULT_NETWORK, crossSignUrl?: string): Promise<BridgeResult> {
   if (!params.evmExecutor) {
     throw new FastError(
       'INVALID_PARAMS',
@@ -235,9 +262,9 @@ async function handleDeposit(params: BridgeParams): Promise<BridgeResult> {
     );
   }
 
-  const chainConfigRaw = getChainConfig(params.fromChain, DEFAULT_NETWORK);
+  const chainConfigRaw = getChainConfig(params.fromChain, network);
   if (!chainConfigRaw) {
-    const networkConfig = getNetworkConfig(DEFAULT_NETWORK);
+    const networkConfig = getNetworkConfig(network);
     throw new FastError(
       'UNSUPPORTED_OPERATION',
       `AllSet does not support EVM chain "${params.fromChain}". Supported: ${Object.keys(networkConfig.chains).join(', ')}`,
@@ -248,9 +275,9 @@ async function handleDeposit(params: BridgeParams): Promise<BridgeResult> {
   }
   const chainConfig = toAllSetChainConfig(chainConfigRaw);
 
-  let tokenInfo = resolveAllSetToken(params.fromToken, params.fromChain);
+  let tokenInfo = resolveAllSetToken(params.fromToken, params.fromChain, network);
   if (!tokenInfo) {
-    tokenInfo = resolveAllSetToken(params.toToken, params.fromChain);
+    tokenInfo = resolveAllSetToken(params.toToken, params.fromChain, network);
   }
   if (!tokenInfo) {
     throw new FastError(
@@ -345,7 +372,7 @@ async function handleDeposit(params: BridgeParams): Promise<BridgeResult> {
 
 // ─── Withdraw (Fast → EVM) ────────────────────────────────────────────────────
 
-async function handleWithdraw(params: BridgeParams): Promise<BridgeResult> {
+async function handleWithdraw(params: BridgeParams, network: 'testnet' | 'mainnet' = DEFAULT_NETWORK, crossSignUrl?: string): Promise<BridgeResult> {
   if (!params.fastWallet) {
     throw new FastError(
       'INVALID_PARAMS',
@@ -356,9 +383,9 @@ async function handleWithdraw(params: BridgeParams): Promise<BridgeResult> {
     );
   }
 
-  const chainConfigRaw = getChainConfig(params.toChain, DEFAULT_NETWORK);
+  const chainConfigRaw = getChainConfig(params.toChain, network);
   if (!chainConfigRaw) {
-    const networkConfig = getNetworkConfig(DEFAULT_NETWORK);
+    const networkConfig = getNetworkConfig(network);
     throw new FastError(
       'UNSUPPORTED_OPERATION',
       `AllSet does not support EVM destination chain "${params.toChain}". Supported: ${Object.keys(networkConfig.chains).join(', ')}`,
@@ -369,9 +396,9 @@ async function handleWithdraw(params: BridgeParams): Promise<BridgeResult> {
   }
   const chainConfig = toAllSetChainConfig(chainConfigRaw);
 
-  let tokenInfo = resolveAllSetToken(params.fromToken, params.toChain);
+  let tokenInfo = resolveAllSetToken(params.fromToken, params.toChain, network);
   if (!tokenInfo) {
-    tokenInfo = resolveAllSetToken(params.toToken, params.toChain);
+    tokenInfo = resolveAllSetToken(params.toToken, params.toChain, network);
   }
   if (!tokenInfo) {
     throw new FastError(
@@ -399,7 +426,7 @@ async function handleWithdraw(params: BridgeParams): Promise<BridgeResult> {
   });
 
   // Step 2: Cross-sign the transfer certificate
-  const transferCrossSign = await evmSign(transferResult.certificate);
+  const transferCrossSign = await evmSign(transferResult.certificate, crossSignUrl);
 
   // Use the transaction hash directly (keccak256 of BCS-serialized transaction)
   const transferFastTxId = transferResult.txHash as `0x${string}`;
@@ -462,7 +489,7 @@ async function handleWithdraw(params: BridgeParams): Promise<BridgeResult> {
   });
 
   // Step 5: Cross-sign the intent certificate
-  const intentCrossSign = await evmSign(intentResult.certificate);
+  const intentCrossSign = await evmSign(intentResult.certificate, crossSignUrl);
 
   // Step 6: Submit to relayer
   const relayerBody = {

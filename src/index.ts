@@ -34,7 +34,7 @@
  */
 
 // Bridge provider (singleton for backwards compatibility)
-export { allsetProvider, evmSign } from './bridge.js';
+export { allsetProvider, evmSign, executeBridge } from './bridge.js';
 
 // AllSetProvider class (configurable)
 export {

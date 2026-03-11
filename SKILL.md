@@ -326,12 +326,13 @@ const result = await allsetProvider.bridge({
 
 When reasoning about behavior, use the code as the source of truth:
 
-- Token resolution is driven by `CHAIN_TOKENS` in `src/bridge.ts`
-- Supported bridge routes are enforced in `allsetProvider.bridge(...)`
-- Withdrawal posts to the relayer URL from `CHAIN_CONFIGS`
+- Network/chain/token config is in `data/networks.json` (or user override at `~/.allset/networks.json`)
+- Token resolution handles `fastUSDC` → `USDC` normalization automatically
+- Supported bridge routes are enforced by the chain configs in networks.json
+- Withdrawal posts to the relayer URL from chain config
 - The package throws `FastError` from `@fastxyz/sdk`
 
-Do not invent additional token aliases, chain IDs, or mainnet support.
+Do not invent additional token aliases, chain IDs, or mainnet support unless added to networks.json.
 
 ### 6. Validate after edits
 
@@ -375,6 +376,7 @@ new AllSetProvider(options?: AllSetProviderOptions)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
+| `bridge(params)` | `Promise<BridgeResult>` | Bridge tokens (see params below) |
 | `getChainConfig(chain)` | `ChainConfig \| null` | Get chain configuration |
 | `getTokenConfig(chain, token)` | `TokenConfig \| null` | Get token configuration |
 | `getNetworkConfig()` | `NetworkConfig` | Get full network config |
@@ -382,20 +384,34 @@ new AllSetProvider(options?: AllSetProviderOptions)
 **Example:**
 
 ```ts
+import { FastProvider, FastWallet } from '@fastxyz/sdk';
 import { AllSetProvider } from '@fastxyz/allset-sdk';
 
-const provider = new AllSetProvider({ network: 'testnet' });
+// Create providers
+const fastProvider = new FastProvider({ network: 'testnet' });
+const allset = new AllSetProvider({ network: 'testnet' });
 
-console.log(provider.chains); // ['ethereum', 'arbitrum']
+// Create wallet
+const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);
 
-const arbConfig = provider.getChainConfig('arbitrum');
-console.log(arbConfig?.bridgeContract);
-
-const usdcConfig = provider.getTokenConfig('arbitrum', 'USDC');
-console.log(usdcConfig?.evmAddress);
+// Bridge using the provider
+const result = await allset.bridge({
+  fromChain: 'fast',
+  toChain: 'arbitrum',
+  fromToken: 'fastUSDC',
+  toToken: 'USDC',
+  fromDecimals: 6,
+  amount: '1000000',
+  senderAddress: fastWallet.address,
+  receiverAddress: '0xYourEvmAddress',
+  fastWallet,
+});
 ```
 
-### `allsetProvider.bridge(params)`
+### `allsetProvider.bridge(params)` (singleton)
+
+> **Note:** `allsetProvider` is a backwards-compatible singleton using default testnet config.
+> For configurable usage, use `new AllSetProvider(options)` instead.
 
 Bridge tokens between Fast network and EVM chains.
 

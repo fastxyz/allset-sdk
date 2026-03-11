@@ -1,14 +1,15 @@
 /**
- * provider.ts — AllSetProvider for bridge configuration
+ * provider.ts — AllSetProvider for bridge configuration and operations
  *
  * Similar to FastProvider, AllSetProvider manages network configuration
- * and provides access to bridge functionality.
+ * and provides the bridge() method for bridging tokens.
  */
 
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { NetworkConfig, ChainConfig, TokenConfig, AllNetworksConfig } from './config.js';
+import type { BridgeParams, BridgeResult } from './types.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -188,6 +189,31 @@ export class AllSetProvider {
    */
   getRawConfig(): AllNetworksConfig {
     return this._config;
+  }
+
+  /**
+   * Bridge tokens between Fast network and EVM chains.
+   * 
+   * @example
+   * ```ts
+   * // Withdraw fastUSDC to USDC on Arbitrum
+   * const result = await provider.bridge({
+   *   fromChain: 'fast',
+   *   toChain: 'arbitrum',
+   *   fromToken: 'fastUSDC',
+   *   toToken: 'USDC',
+   *   fromDecimals: 6,
+   *   amount: '1000000',
+   *   senderAddress: fastWallet.address,
+   *   receiverAddress: '0x...',
+   *   fastWallet,
+   * });
+   * ```
+   */
+  async bridge(params: BridgeParams): Promise<BridgeResult> {
+    // Import dynamically to avoid circular dependency
+    const { executeBridge } = await import('./bridge.js');
+    return executeBridge(params, this);
   }
 }
 
