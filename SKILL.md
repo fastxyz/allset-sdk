@@ -27,11 +27,23 @@ npm install @fastxyz/sdk @fastxyz/allset-sdk
 
 This package exports:
 
-- `allsetProvider`: the bridge provider with `bridge(...)`
+- `AllSetProvider`: configurable provider for network/chain settings
+- `allsetProvider`: singleton bridge provider with `bridge(...)` (backwards compatible)
 - `createEvmExecutor(privateKey, rpcUrl, chainId)`: a viem-based EVM transaction executor
 - `createEvmWallet(keyOrPath?)`: generate, derive, or load EVM wallets
 - `saveEvmWallet(wallet, path)`: persist EVM wallets to disk
 - `evmSign(certificate, crossSignUrl?)`: AllSet-specific cross-signing
+- `initUserConfig()`: initialize `~/.allset/networks.json` from defaults
+
+**Directory Structure:**
+
+```
+~/.allset/
+├── networks.json          # Custom network config (overrides bundled defaults)
+└── .evm/
+    └── keys/
+        └── default.json   # EVM wallet keyfiles
+```
 
 **Important:** This SDK no longer exports Fast wallet/client utilities. Use `FastWallet` and `FastProvider` from `@fastxyz/sdk` instead. Refer to the [fast-sdk repository](https://github.com/fastxyz/fast-sdk) or the `@fastxyz/sdk` package documentation for the different ways to set up the provider and wallet.
 
@@ -39,23 +51,26 @@ This package exports:
 
 Before writing code or telling the user a route is supported, check these constraints:
 
-- Network support is `testnet` only.
+- Network support is `testnet` only (mainnet config is placeholder).
 - The bridge provider handles Fast to EVM and EVM to Fast flows only.
-- Configured EVM chains are `ethereum` and `arbitrum`.
+- Configured EVM chains are `ethereum` and `arbitrum` (see `data/networks.json`).
 - `createEvmExecutor(...)` only supports chain IDs `11155111` (Ethereum Sepolia) and `421614` (Arbitrum Sepolia).
-- The live token registry in `src/bridge.ts` currently maps only Arbitrum Sepolia `USDC` and `fastUSDC`.
-- Ethereum Sepolia has bridge config, but no shipped token mapping yet. Do not claim Ethereum token bridging works unless you add the missing token definitions.
+- Token configuration is in `data/networks.json` — currently USDC on both chains.
+- Users can override config by creating `~/.allset/networks.json`.
 
-If the user asks for unsupported routes, say so clearly and point to the exact limit in `src/bridge.ts`.
+If the user asks for unsupported routes, say so clearly and point to `data/networks.json`.
 
 ## Files To Read
 
 Read only what you need:
 
 - `src/index.ts` for public exports
-- `src/bridge.ts` for chain config, token resolution, deposit flow, withdrawal flow, and relayer behavior
+- `src/provider.ts` for AllSetProvider class and directory utilities
+- `src/config.ts` for network configuration loading
+- `src/bridge.ts` for bridge logic, deposit/withdrawal flows, and relayer behavior
 - `src/evm-executor.ts` for the viem transaction executor
 - `src/types.ts` for the `EvmTxExecutor` and `BridgeProvider` interfaces
+- `data/networks.json` for network/chain/token configuration
 - `README.md` for human-facing usage examples
 
 ## Workflow
@@ -245,6 +260,56 @@ If you change code in this repo:
 5. Report any remaining gaps explicitly
 
 ## API Reference
+
+### `AllSetProvider`
+
+Configurable provider for AllSet bridge settings.
+
+**Constructor:**
+
+```ts
+new AllSetProvider(options?: AllSetProviderOptions)
+```
+
+**Options:**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `network` | `'testnet' \| 'mainnet'` | `'testnet'` | Network to use |
+| `configPath` | `string?` | — | Custom path to networks.json |
+| `crossSignUrl` | `string?` | — | Override cross-sign service URL |
+
+**Properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `network` | `string` | Current network name |
+| `crossSignUrl` | `string` | Cross-sign service URL |
+| `chains` | `string[]` | List of supported chain names |
+
+**Methods:**
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `getChainConfig(chain)` | `ChainConfig \| null` | Get chain configuration |
+| `getTokenConfig(chain, token)` | `TokenConfig \| null` | Get token configuration |
+| `getNetworkConfig()` | `NetworkConfig` | Get full network config |
+
+**Example:**
+
+```ts
+import { AllSetProvider } from '@fastxyz/allset-sdk';
+
+const provider = new AllSetProvider({ network: 'testnet' });
+
+console.log(provider.chains); // ['ethereum', 'arbitrum']
+
+const arbConfig = provider.getChainConfig('arbitrum');
+console.log(arbConfig?.bridgeContract);
+
+const usdcConfig = provider.getTokenConfig('arbitrum', 'USDC');
+console.log(usdcConfig?.evmAddress);
+```
 
 ### `allsetProvider.bridge(params)`
 

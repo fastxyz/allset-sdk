@@ -1,10 +1,8 @@
 # AllSet SDK
 
-Official TypeScript SDK for the AllSet bridge. Bridge tokens between Fast network and supported EVM routes, with the current branch focused on Arbitrum Sepolia and Fast testnet flows.
+Official TypeScript SDK for the AllSet bridge. Bridge tokens between Fast network and supported EVM chains.
 
-## Prerequisites
-
-Install both the Fast SDK and AllSet SDK:
+## Installation
 
 ```bash
 npm install @fastxyz/sdk @fastxyz/allset-sdk
@@ -12,14 +10,28 @@ npm install @fastxyz/sdk @fastxyz/allset-sdk
 
 ## Quick Start
 
+### Setup
+
+```ts
+import { FastProvider, FastWallet } from '@fastxyz/sdk';
+import { AllSetProvider, createEvmWallet, saveEvmWallet } from '@fastxyz/allset-sdk';
+
+// Create providers
+const fastProvider = new FastProvider({ network: 'testnet' });
+const allsetProvider = new AllSetProvider({ network: 'testnet' });
+
+// Create or load wallets
+const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);
+const evmWallet = createEvmWallet('~/.allset/.evm/keys/default.json');
+```
+
 ### Deposit (EVM → Fast)
 
 ```ts
-import { createEvmExecutor, allsetProvider } from '@fastxyz/allset-sdk';
+import { allsetProvider, createEvmExecutor } from '@fastxyz/allset-sdk';
 
-// Your EVM wallet that holds USDC
 const evmExecutor = createEvmExecutor(
-  '<senderEvmPrivateKey>',  // Private key of the sender wallet
+  '<yourPrivateKey>',
   'https://sepolia-rollup.arbitrum.io/rpc',
   421614
 );
@@ -30,13 +42,11 @@ const result = await allsetProvider.bridge({
   fromToken: 'USDC',
   toToken: 'fastUSDC',
   fromDecimals: 6,
-  amount: '1000000', // 1 USDC (6 decimals)
+  amount: '1000000', // 1 USDC
   senderAddress: '0xYourEvmAddress',
   receiverAddress: 'fast1yourfastaddress',
   evmExecutor,
 });
-
-console.log(result.txHash);
 ```
 
 ### Withdraw (Fast → EVM)
@@ -45,73 +55,98 @@ console.log(result.txHash);
 import { FastProvider, FastWallet } from '@fastxyz/sdk';
 import { allsetProvider } from '@fastxyz/allset-sdk';
 
-// Create Fast wallet
 const provider = new FastProvider({ network: 'testnet' });
 const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
 
-// Bridge Fast → EVM
 const result = await allsetProvider.bridge({
   fromChain: 'fast',
   toChain: 'arbitrum',
   fromToken: 'fastUSDC',
   toToken: 'USDC',
   fromDecimals: 6,
-  amount: '1000000', // 1 fastUSDC (6 decimals)
+  amount: '1000000', // 1 fastUSDC
   senderAddress: fastWallet.address,
   receiverAddress: '0xYourEvmAddress',
   fastWallet,
 });
-
-console.log(result.txHash);
-// { txHash: '0x...', orderId: '0x...', estimatedTime: '1-5 minutes' }
 ```
 
-## Same-Key Pattern
+## Directory Structure
 
-You can derive an EVM wallet from the same private key as your Fast wallet. This is useful when you want a single keypair for both networks:
+```
+~/.allset/
+├── networks.json          # Custom network config (optional)
+└── .evm/
+    └── keys/
+        └── default.json   # EVM wallet keyfiles
+```
+
+## Configuration
+
+### Using AllSetProvider
 
 ```ts
-import { FastProvider, FastWallet } from '@fastxyz/sdk';
-import { createEvmWallet } from '@fastxyz/allset-sdk';
+import { AllSetProvider } from '@fastxyz/allset-sdk';
 
-const provider = new FastProvider({ network: 'testnet' });
-const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
+// Default (testnet)
+const provider = new AllSetProvider();
 
-// Derive EVM wallet from the same private key
-const keys = await fastWallet.exportKeys();
-const evmWallet = createEvmWallet(keys.privateKey);
+// Mainnet
+const provider = new AllSetProvider({ network: 'mainnet' });
 
-console.log('Fast address:', fastWallet.address);
-console.log('EVM address:', evmWallet.address);
+// Custom config file
+const provider = new AllSetProvider({ configPath: './my-config.json' });
+
+// Access config
+console.log(provider.chains);           // ['ethereum', 'arbitrum']
+console.log(provider.crossSignUrl);     // 'https://...'
+provider.getChainConfig('arbitrum');    // { chainId, bridgeContract, ... }
+provider.getTokenConfig('arbitrum', 'USDC'); // { evmAddress, fastTokenId, ... }
 ```
 
-## Features
+### Custom Configuration
 
-- **Deposit** - Bridge USDC from EVM chains to fastUSDC on Fast
-- **Withdraw** - Bridge fastUSDC from Fast to USDC on EVM chains
-- **EVM Executor** - Built-in viem-based transaction executor
-- **evmSign** - AllSet-specific cross-signing for bridge verification
-- **Same-key EVM wallet** - Derive EVM address from Fast private key
+Copy the default config to your home directory:
+
+```ts
+import { initUserConfig } from '@fastxyz/allset-sdk';
+
+initUserConfig(); // Creates ~/.allset/networks.json
+```
+
+Then edit `~/.allset/networks.json` with your custom URLs or contract addresses.
+
+## EVM Wallets
+
+```ts
+import { createEvmWallet, saveEvmWallet } from '@fastxyz/allset-sdk';
+
+// Generate new wallet
+const wallet = createEvmWallet();
+saveEvmWallet(wallet, '~/.allset/.evm/keys/default.json');
+
+// Load from file
+const loaded = createEvmWallet('~/.allset/.evm/keys/default.json');
+
+// Derive from private key
+const derived = createEvmWallet('0x1234...');
+
+// Same-key pattern (from Fast wallet)
+const keys = await fastWallet.exportKeys();
+const evmWallet = createEvmWallet(keys.privateKey);
+```
 
 ## Supported Networks
 
-Current SDK implementation:
-
-- Testnet-only bridge flows
-- Arbitrum Sepolia (`421614`) + Fast testnet
-- Token mapping for `USDC` ↔ `fastUSDC`
+| Network | Chain | Status |
+|---------|-------|--------|
+| Testnet | Arbitrum Sepolia | ✅ |
+| Testnet | Ethereum Sepolia | ✅ |
+| Mainnet | Coming soon | 🔜 |
 
 ## Documentation
 
-See [SKILL.md](./SKILL.md) for detailed API documentation, advanced usage, and troubleshooting.
-
-## Development
-
-```bash
-npm install
-npm run build
-npm test
-```
+See [SKILL.md](./SKILL.md) for detailed API documentation and troubleshooting.
 
 ## License
 

@@ -4,10 +4,12 @@
  * Provides sendTx, checkAllowance, and approveErc20 for bridge operations.
  * Also provides createEvmWallet() to generate, derive, or load EVM wallets,
  * and saveEvmWallet() to persist them to disk.
+ *
+ * Default wallet path: ~/.allset/.evm/keys/
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import {
   createPublicClient,
   createWalletClient,
@@ -23,6 +25,21 @@ import type { EvmTxExecutor } from './types.js';
 export interface EvmWallet {
   privateKey: `0x${string}`;
   address: `0x${string}`;
+}
+
+// Default EVM keys directory
+const DEFAULT_EVM_KEYS_DIR = join(
+  process.env.HOME || process.env.USERPROFILE || '',
+  '.allset',
+  '.evm',
+  'keys'
+);
+
+/**
+ * Get the default EVM keys directory (~/.allset/.evm/keys).
+ */
+export function getEvmKeysDir(): string {
+  return DEFAULT_EVM_KEYS_DIR;
 }
 
 /**
@@ -104,6 +121,7 @@ export function createEvmWallet(keyOrPath?: string): EvmWallet {
  *
  * Creates parent directories if they don't exist.
  * The file format matches Fast wallet keyfiles for consistency.
+ * Default location: ~/.allset/.evm/keys/
  *
  * @param wallet - The wallet object with privateKey and address
  * @param path - File path to save to (supports ~ expansion)
@@ -111,7 +129,7 @@ export function createEvmWallet(keyOrPath?: string): EvmWallet {
  * @example
  * ```ts
  * const wallet = createEvmWallet();
- * saveEvmWallet(wallet, '~/.evm/keys/default.json');
+ * saveEvmWallet(wallet, '~/.allset/.evm/keys/default.json');
  * ```
  */
 export function saveEvmWallet(wallet: EvmWallet, path: string): void {
