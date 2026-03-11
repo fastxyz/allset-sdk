@@ -29,7 +29,8 @@ This package exports:
 
 - `allsetProvider`: the bridge provider with `bridge(...)`
 - `createEvmExecutor(privateKey, rpcUrl, chainId)`: a viem-based EVM transaction executor
-- `createEvmWallet(privateKey?)`: utility to generate or derive EVM wallets
+- `createEvmWallet(keyOrPath?)`: generate, derive, or load EVM wallets
+- `saveEvmWallet(wallet, path)`: persist EVM wallets to disk
 - `evmSign(certificate, crossSignUrl?)`: AllSet-specific cross-signing
 
 **Important:** This SDK no longer exports Fast wallet/client utilities. Use `FastWallet` and `FastProvider` from `@fastxyz/sdk` instead. Refer to the [fast-sdk repository](https://github.com/fastxyz/fast-sdk) or the `@fastxyz/sdk` package documentation for the different ways to set up the provider and wallet.
@@ -73,17 +74,18 @@ Do not start coding until you confirm the requested chain, token, and direction 
 
 ### 2. Creating EVM Wallets
 
-The `createEvmWallet()` function supports multiple patterns:
+The `createEvmWallet()` function supports multiple patterns — generate, derive from key, or load from file:
 
 #### Generate a new random wallet
 
 ```ts
-import { createEvmWallet } from '@fastxyz/allset-sdk';
+import { createEvmWallet, saveEvmWallet } from '@fastxyz/allset-sdk';
 
 const wallet = createEvmWallet();
-console.log('Private key:', wallet.privateKey);
 console.log('Address:', wallet.address);
-// Store privateKey securely!
+
+// Save to file for later use
+saveEvmWallet(wallet, '~/.evm/keys/default.json');
 ```
 
 #### Derive from an existing private key
@@ -96,13 +98,27 @@ const wallet = createEvmWallet('0x1234...your64hexchars...');
 console.log('Address:', wallet.address);
 ```
 
+#### Load from a keyfile
+
+```ts
+import { createEvmWallet } from '@fastxyz/allset-sdk';
+
+// Load from JSON file (auto-detected by path)
+const wallet = createEvmWallet('~/.evm/keys/default.json');
+console.log('Address:', wallet.address);
+```
+
+The function auto-detects file paths vs private keys:
+- Contains `/` or `~`, or ends with `.json` → loads from file
+- Otherwise → treats as private key
+
 #### Same-key pattern (derive from Fast wallet)
 
 Use the same private key for both Fast and EVM networks:
 
 ```ts
 import { FastProvider, FastWallet } from '@fastxyz/sdk';
-import { createEvmWallet } from '@fastxyz/allset-sdk';
+import { createEvmWallet, saveEvmWallet } from '@fastxyz/allset-sdk';
 
 const provider = new FastProvider({ network: 'testnet' });
 const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
@@ -113,6 +129,9 @@ const evmWallet = createEvmWallet(keys.privateKey);
 
 console.log('Fast address:', fastWallet.address);
 console.log('EVM address:', evmWallet.address);
+
+// Optionally save the derived EVM wallet
+saveEvmWallet(evmWallet, '~/.evm/keys/same-key.json');
 ```
 
 ### 3. Use the correct execution path
@@ -291,15 +310,17 @@ const evmExecutor = createEvmExecutor(
 );
 ```
 
-### `createEvmWallet(privateKey?)`
+### `createEvmWallet(keyOrPath?)`
 
-Create or derive an EVM wallet.
+Create, derive, or load an EVM wallet.
 
 **Parameters:**
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `privateKey` | `string?` | Optional. If provided, derives address from it. If omitted, generates a new random wallet. |
+| `keyOrPath` | `string?` | Optional. Can be: (1) omitted to generate new wallet, (2) private key (64 hex chars) to derive from, or (3) file path to load from JSON |
+
+**Path detection:** If the string contains `/` or `~`, or ends with `.json`, it's treated as a file path. Otherwise it's treated as a private key.
 
 **Returns:** `{ privateKey: string; address: string }`
 
@@ -310,7 +331,33 @@ Create or derive an EVM wallet.
 const newWallet = createEvmWallet();
 
 // Derive from existing key
-const derivedWallet = createEvmWallet('<existingPrivateKey>');
+const derivedWallet = createEvmWallet('0x1234...64hexchars...');
+
+// Load from file
+const loadedWallet = createEvmWallet('~/.evm/keys/default.json');
+```
+
+### `saveEvmWallet(wallet, path)`
+
+Save an EVM wallet to a JSON file.
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `wallet` | `EvmWallet` | The wallet object with `privateKey` and `address` |
+| `path` | `string` | File path to save to (supports `~` expansion) |
+
+Creates parent directories if they don't exist. File permissions are set to `0600` (owner read/write only).
+
+**Example:**
+
+```ts
+const wallet = createEvmWallet();
+saveEvmWallet(wallet, '~/.evm/keys/default.json');
+
+// Later, load it back
+const loaded = createEvmWallet('~/.evm/keys/default.json');
 ```
 
 ### `evmSign(certificate, crossSignUrl?)`

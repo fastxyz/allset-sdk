@@ -34,7 +34,7 @@
  */
 
 export { allsetProvider, evmSign } from './bridge.js';
-export { createEvmExecutor, createEvmWallet } from './evm-executor.js';
+export { createEvmExecutor, createEvmWallet, saveEvmWallet } from './evm-executor.js';
 
 export type {
   BridgeProvider,
@@ -46,3 +46,4 @@ export type {
 } from './types.js';
 
 export type { EvmSignResult } from './bridge.js';
+export type { EvmWallet } from './evm-executor.js';
