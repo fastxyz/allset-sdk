@@ -4,19 +4,55 @@ import test from 'node:test';
 import {
   createEvmExecutor,
   createEvmWallet,
-  allsetProvider,
+  AllSetProvider,
   evmSign,
 } from '../src/index.ts';
 
-test('allsetProvider exposes expected metadata', () => {
-  assert.equal(allsetProvider.name, 'allset');
-  assert.deepEqual(allsetProvider.chains, ['fast', 'ethereum', 'arbitrum']);
-  assert.deepEqual(allsetProvider.networks, ['testnet']);
+test('AllSetProvider exposes expected properties', () => {
+  const allset = new AllSetProvider({ network: 'testnet' });
+  assert.equal(allset.network, 'testnet');
+  assert.ok(allset.chains.includes('arbitrum'));
+  assert.ok(allset.chains.includes('ethereum'));
+  assert.ok(allset.crossSignUrl.length > 0);
+});
+
+test('AllSetProvider.getChainConfig returns config for supported chains', () => {
+  const allset = new AllSetProvider({ network: 'testnet' });
+  
+  const arbConfig = allset.getChainConfig('arbitrum');
+  assert.ok(arbConfig);
+  assert.equal(arbConfig.chainId, 421614);
+  assert.ok(arbConfig.bridgeContract.startsWith('0x'));
+  
+  const ethConfig = allset.getChainConfig('ethereum');
+  assert.ok(ethConfig);
+  assert.equal(ethConfig.chainId, 11155111);
+});
+
+test('AllSetProvider.getChainConfig returns null for unsupported chains', () => {
+  const allset = new AllSetProvider({ network: 'testnet' });
+  const config = allset.getChainConfig('unsupported');
+  assert.equal(config, null);
+});
+
+test('AllSetProvider.getTokenConfig returns config and normalizes fastUSDC', () => {
+  const allset = new AllSetProvider({ network: 'testnet' });
+  
+  const usdcConfig = allset.getTokenConfig('arbitrum', 'USDC');
+  assert.ok(usdcConfig);
+  assert.equal(usdcConfig.decimals, 6);
+  
+  // fastUSDC should normalize to USDC config
+  const fastUsdcConfig = allset.getTokenConfig('arbitrum', 'fastUSDC');
+  assert.ok(fastUsdcConfig);
+  assert.deepEqual(fastUsdcConfig, usdcConfig);
 });
 
 test('unsupported route is rejected', async () => {
+  const allset = new AllSetProvider({ network: 'testnet' });
+  
   await assert.rejects(
-    () => allsetProvider.bridge({
+    () => allset.bridge({
       fromChain: 'ethereum',
       toChain: 'arbitrum',
       fromToken: 'USDC',
@@ -34,8 +70,10 @@ test('unsupported route is rejected', async () => {
 });
 
 test('deposit without evmExecutor is rejected', async () => {
+  const allset = new AllSetProvider({ network: 'testnet' });
+  
   await assert.rejects(
-    () => allsetProvider.bridge({
+    () => allset.bridge({
       fromChain: 'arbitrum',
       toChain: 'fast',
       fromToken: 'USDC',
@@ -53,8 +91,10 @@ test('deposit without evmExecutor is rejected', async () => {
 });
 
 test('withdrawal without fastWallet is rejected', async () => {
+  const allset = new AllSetProvider({ network: 'testnet' });
+  
   await assert.rejects(
-    () => allsetProvider.bridge({
+    () => allset.bridge({
       fromChain: 'fast',
       toChain: 'arbitrum',
       fromToken: 'fastUSDC',
