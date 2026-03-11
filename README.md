@@ -17,8 +17,9 @@ npm install @fastxyz/sdk @fastxyz/allset-sdk
 ```ts
 import { createEvmExecutor, allsetProvider } from '@fastxyz/allset-sdk';
 
+// Your EVM wallet that holds USDC
 const evmExecutor = createEvmExecutor(
-  process.env.EVM_PRIVATE_KEY!,
+  senderEvmPrivateKey,  // Private key of the sender wallet
   'https://sepolia-rollup.arbitrum.io/rpc',
   421614
 );
