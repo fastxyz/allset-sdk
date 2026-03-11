@@ -32,7 +32,7 @@ This package exports:
 - `createEvmWallet(privateKey?)`: utility to generate or derive EVM wallets
 - `evmSign(certificate, crossSignUrl?)`: AllSet-specific cross-signing
 
-**Important:** This SDK no longer exports Fast wallet/client utilities. Use `FastWallet` and `FastProvider` from `@fastxyz/sdk` instead.
+**Important:** This SDK no longer exports Fast wallet/client utilities. Use `FastWallet` and `FastProvider` from `@fastxyz/sdk` instead. Refer to the [fast-sdk repository](https://github.com/fastxyz/fast-sdk) or the `@fastxyz/sdk` package documentation for the different ways to set up the provider and wallet.
 
 ## Current Support Matrix
 
@@ -73,7 +73,7 @@ Do not start coding until you confirm the requested chain, token, and direction 
 
 ### 2. Use the correct execution path
 
-For EVM to Fast deposits:
+#### Deposit (EVM → Fast)
 
 - Require `evmExecutor`
 - Require a Fast bech32m receiver address (`fast1...`)
@@ -85,9 +85,10 @@ Example:
 ```ts
 import { createEvmExecutor, allsetProvider } from '@fastxyz/allset-sdk';
 
+// Your EVM wallet that holds USDC
 const evmExecutor = createEvmExecutor(
-  process.env.EVM_PRIVATE_KEY!,
-  process.env.ARBITRUM_SEPOLIA_RPC_URL!,
+  '<senderEvmPrivateKey>',  // Private key of the sender wallet
+  'https://sepolia-rollup.arbitrum.io/rpc',
   421614,
 );
 
@@ -104,25 +105,22 @@ const result = await allsetProvider.bridge({
 });
 ```
 
-For Fast to EVM withdrawals:
+#### Withdraw (Fast → EVM)
 
 - Require `fastWallet` from `@fastxyz/sdk`
+- Refer to the [fast-sdk repository](https://github.com/fastxyz/fast-sdk) or `@fastxyz/sdk` package for the different ways to set up the provider and wallet (e.g., `fromKeyfile`, `fromPrivateKey`, `generate`)
 - Use an EVM receiver address (`0x...`)
 - Call `allsetProvider.bridge(...)` with `fromChain: 'fast'`
 
-Example:
+**Example: Withdraw to your own EVM address**
 
 ```ts
 import { FastProvider, FastWallet } from '@fastxyz/sdk';
-import { allsetProvider, createEvmWallet } from '@fastxyz/allset-sdk';
+import { allsetProvider } from '@fastxyz/allset-sdk';
 
-// Create Fast wallet
+// Create Fast wallet (see @fastxyz/sdk for setup options)
 const provider = new FastProvider({ network: 'testnet' });
 const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
-
-// Derive EVM wallet from same key
-const keys = await fastWallet.exportKeys();
-const evmWallet = createEvmWallet(keys.privateKey);
 
 const result = await allsetProvider.bridge({
   fromChain: 'fast',
@@ -132,14 +130,64 @@ const result = await allsetProvider.bridge({
   fromDecimals: 6,
   amount: '1000000',
   senderAddress: fastWallet.address,
-  receiverAddress: evmWallet.address,
+  receiverAddress: '0xYourEvmAddress',
   fastWallet,
 });
 ```
 
-### 3. Same-Key Pattern
+**Example: Withdraw to a different receiver**
 
-For convenience, you can derive an EVM wallet from the same private key as your Fast wallet:
+You can withdraw to any EVM address, not just your own:
+
+```ts
+import { FastProvider, FastWallet } from '@fastxyz/sdk';
+import { allsetProvider } from '@fastxyz/allset-sdk';
+
+const provider = new FastProvider({ network: 'testnet' });
+const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
+
+// Withdraw to a different EVM address (e.g., another user, merchant, exchange)
+const result = await allsetProvider.bridge({
+  fromChain: 'fast',
+  toChain: 'arbitrum',
+  fromToken: 'fastUSDC',
+  toToken: 'USDC',
+  fromDecimals: 6,
+  amount: '1000000',
+  senderAddress: fastWallet.address,
+  receiverAddress: '0xRecipientEvmAddress',  // Any valid EVM address
+  fastWallet,
+});
+```
+
+### 3. Creating EVM Wallets
+
+The `createEvmWallet()` function supports multiple patterns:
+
+#### Generate a new random wallet
+
+```ts
+import { createEvmWallet } from '@fastxyz/allset-sdk';
+
+const wallet = createEvmWallet();
+console.log('Private key:', wallet.privateKey);
+console.log('Address:', wallet.address);
+// Store privateKey securely!
+```
+
+#### Derive from an existing private key
+
+```ts
+import { createEvmWallet } from '@fastxyz/allset-sdk';
+
+// Use an existing private key (with or without 0x prefix)
+const wallet = createEvmWallet('0x1234...your64hexchars...');
+console.log('Address:', wallet.address);
+```
+
+#### Same-key pattern (derive from Fast wallet)
+
+Use the same private key for both Fast and EVM networks:
 
 ```ts
 import { FastProvider, FastWallet } from '@fastxyz/sdk';
@@ -176,6 +224,143 @@ If you change code in this repo:
 3. Run `npm run build`
 4. Run `npm test`
 5. Report any remaining gaps explicitly
+
+## API Reference
+
+### `allsetProvider.bridge(params)`
+
+Bridge tokens between Fast network and EVM chains.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `fromChain` | `string` | Yes | Source chain: `'fast'`, `'ethereum'`, or `'arbitrum'` |
+| `toChain` | `string` | Yes | Destination chain: `'fast'`, `'ethereum'`, or `'arbitrum'` |
+| `fromToken` | `string` | Yes | Source token symbol or address |
+| `toToken` | `string` | Yes | Destination token symbol or address |
+| `fromDecimals` | `number` | Yes | Token decimals (e.g., `6` for USDC) |
+| `amount` | `string` | Yes | Amount in smallest units (e.g., `'1000000'` for 1 USDC) |
+| `senderAddress` | `string` | Yes | Sender's address on source chain |
+| `receiverAddress` | `string` | Yes | Receiver's address on destination chain |
+| `evmExecutor` | `EvmTxExecutor` | Deposits only | EVM executor from `createEvmExecutor()` |
+| `fastWallet` | `FastWallet` | Withdrawals only | FastWallet from `@fastxyz/sdk` |
+
+**Returns:** `Promise<{ txHash: string; orderId: string; estimatedTime?: string }>`
+
+**Example:**
+
+```ts
+const result = await allsetProvider.bridge({
+  fromChain: 'fast',
+  toChain: 'arbitrum',
+  fromToken: 'fastUSDC',
+  toToken: 'USDC',
+  fromDecimals: 6,
+  amount: '1000000',
+  senderAddress: fastWallet.address,
+  receiverAddress: '0xReceiverAddress',
+  fastWallet,
+});
+
+console.log('TX Hash:', result.txHash);
+console.log('Order ID:', result.orderId);
+```
+
+### `createEvmExecutor(privateKey, rpcUrl, chainId)`
+
+Create an EVM transaction executor for deposit operations.
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `privateKey` | `string` | EVM private key (hex, with or without `0x` prefix) |
+| `rpcUrl` | `string` | EVM RPC endpoint URL |
+| `chainId` | `number` | Chain ID (`421614` for Arbitrum Sepolia, `11155111` for Ethereum Sepolia) |
+
+**Returns:** `EvmTxExecutor`
+
+**Example:**
+
+```ts
+const evmExecutor = createEvmExecutor(
+  '<yourPrivateKey>',
+  'https://sepolia-rollup.arbitrum.io/rpc',
+  421614,
+);
+```
+
+### `createEvmWallet(privateKey?)`
+
+Create or derive an EVM wallet.
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `privateKey` | `string?` | Optional. If provided, derives address from it. If omitted, generates a new random wallet. |
+
+**Returns:** `{ privateKey: string; address: string }`
+
+**Example:**
+
+```ts
+// Generate new wallet
+const newWallet = createEvmWallet();
+
+// Derive from existing key
+const derivedWallet = createEvmWallet('<existingPrivateKey>');
+```
+
+### `evmSign(certificate, crossSignUrl?)`
+
+Request EVM cross-signing for a Fast network certificate. This is used internally by the bridge for withdrawal operations, but is exposed for advanced use cases where you need manual control over the cross-signing process.
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `certificate` | `unknown` | The certificate from a `FastWallet.submit()` call |
+| `crossSignUrl` | `string?` | Optional. Custom cross-sign service URL. Defaults to AllSet staging. |
+
+**Returns:** `Promise<{ transaction: number[]; signature: string }>`
+
+**When to use:**
+
+- Building custom bridge flows outside of `allsetProvider.bridge()`
+- Debugging cross-sign failures
+- Implementing multi-step transactions where you need the signed payload before submitting to the relayer
+
+**Example:**
+
+```ts
+import { FastProvider, FastWallet } from '@fastxyz/sdk';
+import { evmSign } from '@fastxyz/allset-sdk';
+
+const provider = new FastProvider({ network: 'testnet' });
+const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
+
+// Submit a transaction and get the certificate
+const submitResult = await fastWallet.submit({
+  recipient: 'fast1bridgeaddress...',
+  claim: {
+    TokenTransfer: {
+      token_id: tokenIdBytes,
+      amount: '1000000',
+      user_data: null,
+    },
+  },
+});
+
+// Cross-sign the certificate for EVM verification
+const crossSignResult = await evmSign(submitResult.certificate);
+
+console.log('Signed transaction bytes:', crossSignResult.transaction);
+console.log('Signature:', crossSignResult.signature);
+
+// Use these values with the AllSet relayer...
+```
 
 ## Troubleshooting
 
@@ -239,7 +424,7 @@ Fix:
 - Check token balance, allowance path, and RPC correctness
 - For withdrawals, inspect the relayer response text from the thrown error
 
-## Migration from v0.1.x
+## Migration from v0.1.1
 
 If upgrading from a previous version that used `createFastClient`:
 
@@ -273,9 +458,11 @@ await allsetProvider.bridge({ ..., fastWallet });
 - "Add a Node script that deposits through allsetProvider"
 - "Wire createEvmExecutor into this backend"
 - "Use a FastWallet to withdraw fastUSDC to Arbitrum"
+- "Withdraw fastUSDC to a different EVM address"
 - "Why do I get TOKEN_NOT_FOUND from allset-sdk?"
 - "Extend this SDK to support another token or chain"
 - "Derive an EVM wallet from my Fast private key"
+- "How do I use evmSign manually?"
 
 ## Requests This Skill Should Not Own
 
