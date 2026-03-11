@@ -20,6 +20,14 @@ const CROSS_SIGN_URL = 'https://staging.cross-sign.allset.fastset.xyz';
 const FAST_USDC_TOKEN_ID = hexToUint8Array('b4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5');
 const FAST_USDC_TOKEN_HEX = 'b4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5';
 
+/**
+ * Convert decimal amount string to hex for BCS serialization.
+ * The Fast network BCS expects amounts as hex strings.
+ */
+function amountToHex(amount: string): string {
+  return BigInt(amount).toString(16);
+}
+
 const CHAIN_CONFIGS: Record<string, AllSetChainConfig> = {
   ethereum: {
     chainId: 11155111,
@@ -378,7 +386,7 @@ async function handleWithdraw(params: BridgeParams): Promise<BridgeResult> {
     claim: {
       TokenTransfer: {
         token_id: tokenInfo.fastsetTokenId,
-        amount: params.amount,
+        amount: amountToHex(params.amount),
         user_data: null,
       },
     },
