@@ -71,7 +71,51 @@ Classify the task first:
 
 Do not start coding until you confirm the requested chain, token, and direction are actually supported by the current implementation.
 
-### 2. Use the correct execution path
+### 2. Creating EVM Wallets
+
+The `createEvmWallet()` function supports multiple patterns:
+
+#### Generate a new random wallet
+
+```ts
+import { createEvmWallet } from '@fastxyz/allset-sdk';
+
+const wallet = createEvmWallet();
+console.log('Private key:', wallet.privateKey);
+console.log('Address:', wallet.address);
+// Store privateKey securely!
+```
+
+#### Derive from an existing private key
+
+```ts
+import { createEvmWallet } from '@fastxyz/allset-sdk';
+
+// Use an existing private key (with or without 0x prefix)
+const wallet = createEvmWallet('0x1234...your64hexchars...');
+console.log('Address:', wallet.address);
+```
+
+#### Same-key pattern (derive from Fast wallet)
+
+Use the same private key for both Fast and EVM networks:
+
+```ts
+import { FastProvider, FastWallet } from '@fastxyz/sdk';
+import { createEvmWallet } from '@fastxyz/allset-sdk';
+
+const provider = new FastProvider({ network: 'testnet' });
+const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
+
+// Derive EVM address from Fast private key
+const keys = await fastWallet.exportKeys();
+const evmWallet = createEvmWallet(keys.privateKey);
+
+console.log('Fast address:', fastWallet.address);
+console.log('EVM address:', evmWallet.address);
+```
+
+### 3. Use the correct execution path
 
 #### Deposit (EVM → Fast)
 
@@ -158,50 +202,6 @@ const result = await allsetProvider.bridge({
   receiverAddress: '0xRecipientEvmAddress',  // Any valid EVM address
   fastWallet,
 });
-```
-
-### 3. Creating EVM Wallets
-
-The `createEvmWallet()` function supports multiple patterns:
-
-#### Generate a new random wallet
-
-```ts
-import { createEvmWallet } from '@fastxyz/allset-sdk';
-
-const wallet = createEvmWallet();
-console.log('Private key:', wallet.privateKey);
-console.log('Address:', wallet.address);
-// Store privateKey securely!
-```
-
-#### Derive from an existing private key
-
-```ts
-import { createEvmWallet } from '@fastxyz/allset-sdk';
-
-// Use an existing private key (with or without 0x prefix)
-const wallet = createEvmWallet('0x1234...your64hexchars...');
-console.log('Address:', wallet.address);
-```
-
-#### Same-key pattern (derive from Fast wallet)
-
-Use the same private key for both Fast and EVM networks:
-
-```ts
-import { FastProvider, FastWallet } from '@fastxyz/sdk';
-import { createEvmWallet } from '@fastxyz/allset-sdk';
-
-const provider = new FastProvider({ network: 'testnet' });
-const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
-
-// Derive EVM address from Fast private key
-const keys = await fastWallet.exportKeys();
-const evmWallet = createEvmWallet(keys.privateKey);
-
-console.log('Fast address:', fastWallet.address);
-console.log('EVM address:', evmWallet.address);
 ```
 
 ### 4. Respect implementation details
