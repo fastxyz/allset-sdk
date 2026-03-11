@@ -6,7 +6,7 @@ description: >
   add examples or scripts around allsetProvider.bridge, or debug bridge errors such as TOKEN_NOT_FOUND,
   INVALID_ADDRESS, INVALID_PARAMS, UNSUPPORTED_OPERATION, and relayer or transaction failures.
 metadata:
-  version: 0.2.0
+  version: 0.1.2
 ---
 
 # AllSet SDK
@@ -243,7 +243,7 @@ Fix:
 
 If upgrading from a previous version that used `createFastClient`:
 
-**Before (v0.1.x):**
+**Before (v0.1.1 and earlier):**
 ```ts
 import { createFastClient, createFastWallet, allsetProvider } from '@fastxyz/allset-sdk';
 
@@ -256,7 +256,7 @@ const fastClient = createFastClient({
 await allsetProvider.bridge({ ..., fastClient });
 ```
 
-**After (v0.2.x):**
+**After (v0.1.2+):**
 ```ts
 import { FastProvider, FastWallet } from '@fastxyz/sdk';
 import { allsetProvider } from '@fastxyz/allset-sdk';
