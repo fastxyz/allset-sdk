@@ -13,14 +13,14 @@
  *
  * // Create providers
  * const fastProvider = new FastProvider({ network: 'testnet' });
- * const allsetProvider = new AllSetProvider({ network: 'testnet' });
+ * const allset = new AllSetProvider({ network: 'testnet' });
  *
  * // Create wallets
  * const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);
  * const evmWallet = createEvmWallet('~/.allset/.evm/keys/default.json');
  *
  * // Bridge Fast → EVM
- * await allsetProvider.bridge({
+ * await allset.bridge({
  *   fromChain: 'fast',
  *   toChain: 'arbitrum',
  *   fromToken: 'fastUSDC',
@@ -33,8 +33,8 @@
  * ```
  */
 
-// Bridge provider (singleton for backwards compatibility)
-export { allsetProvider, evmSign, executeBridge } from './bridge.js';
+// Bridge functions
+export { evmSign, executeBridge } from './bridge.js';
 
 // AllSetProvider class (configurable)
 export {

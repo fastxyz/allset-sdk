@@ -11,7 +11,7 @@
 import { bech32m } from 'bech32';
 import { encodeAbiParameters, encodeFunctionData } from 'viem';
 import { FastError, type FastWallet } from '@fastxyz/sdk';
-import type { BridgeProvider, BridgeParams, BridgeResult, AllSetChainConfig, AllSetTokenInfo } from './types.js';
+import type { BridgeParams, BridgeResult, AllSetChainConfig, AllSetTokenInfo } from './types.js';
 import { getNetworkConfig, getChainConfig, getTokenConfig, type ChainConfig, type TokenConfig } from './config.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -196,7 +196,7 @@ interface BridgeProviderConfig {
 
 /**
  * Execute a bridge operation with optional provider configuration.
- * Called by AllSetProvider.bridge() or directly via allsetProvider singleton.
+ * Called by AllSetProvider.bridge() or directly for low-level usage.
  */
 export async function executeBridge(params: BridgeParams, provider?: BridgeProviderConfig): Promise<BridgeResult> {
   const network = provider?.network ?? DEFAULT_NETWORK;
@@ -232,22 +232,6 @@ export async function executeBridge(params: BridgeParams, provider?: BridgeProvi
     );
   }
 }
-
-// ─── Backwards Compatible Singleton ───────────────────────────────────────────
-
-/**
- * Default bridge provider singleton (backwards compatible).
- * For configurable usage, use AllSetProvider instead.
- */
-export const allsetProvider: BridgeProvider = {
-  name: 'allset',
-  chains: ['fast', 'ethereum', 'arbitrum'],
-  networks: ['testnet'],
-
-  async bridge(params: BridgeParams): Promise<BridgeResult> {
-    return executeBridge(params);
-  },
-};
 
 // ─── Deposit (EVM → Fast) ─────────────────────────────────────────────────────
 

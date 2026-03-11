@@ -10,40 +10,18 @@ npm install @fastxyz/sdk @fastxyz/allset-sdk
 
 ## Quick Start
 
-### Deposit (EVM → Fast)
-
-```ts
-import { allsetProvider, createEvmExecutor } from '@fastxyz/allset-sdk';
-
-const evmExecutor = createEvmExecutor(
-  '<yourPrivateKey>',
-  'https://sepolia-rollup.arbitrum.io/rpc',
-  421614
-);
-
-const result = await allsetProvider.bridge({
-  fromChain: 'arbitrum',
-  toChain: 'fast',
-  fromToken: 'USDC',
-  toToken: 'fastUSDC',
-  fromDecimals: 6,
-  amount: '1000000',
-  senderAddress: '0xYourEvmAddress',
-  receiverAddress: 'fast1yourfastaddress',
-  evmExecutor,
-});
-```
-
 ### Withdraw (Fast → EVM)
 
 ```ts
 import { FastProvider, FastWallet } from '@fastxyz/sdk';
-import { allsetProvider } from '@fastxyz/allset-sdk';
+import { AllSetProvider } from '@fastxyz/allset-sdk';
 
-const provider = new FastProvider({ network: 'testnet' });
-const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
+const fastProvider = new FastProvider({ network: 'testnet' });
+const allset = new AllSetProvider({ network: 'testnet' });
 
-const result = await allsetProvider.bridge({
+const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);
+
+const result = await allset.bridge({
   fromChain: 'fast',
   toChain: 'arbitrum',
   fromToken: 'fastUSDC',
@@ -53,6 +31,32 @@ const result = await allsetProvider.bridge({
   senderAddress: fastWallet.address,
   receiverAddress: '0xYourEvmAddress',
   fastWallet,
+});
+```
+
+### Deposit (EVM → Fast)
+
+```ts
+import { AllSetProvider, createEvmExecutor } from '@fastxyz/allset-sdk';
+
+const allset = new AllSetProvider({ network: 'testnet' });
+
+const evmExecutor = createEvmExecutor(
+  '<yourPrivateKey>',
+  'https://sepolia-rollup.arbitrum.io/rpc',
+  421614
+);
+
+const result = await allset.bridge({
+  fromChain: 'arbitrum',
+  toChain: 'fast',
+  fromToken: 'USDC',
+  toToken: 'fastUSDC',
+  fromDecimals: 6,
+  amount: '1000000',
+  senderAddress: '0xYourEvmAddress',
+  receiverAddress: 'fast1yourfastaddress',
+  evmExecutor,
 });
 ```
 

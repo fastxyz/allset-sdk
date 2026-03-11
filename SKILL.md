@@ -3,10 +3,10 @@ name: allset-sdk
 description: >
   AllSet SDK for bridging tokens between Fast network and EVM chains. Use when the user asks to bridge
   USDC or fastUSDC between Fast and Arbitrum/Ethereum Sepolia, wire createEvmExecutor with FastWallet,
-  add examples or scripts around allsetProvider.bridge, or debug bridge errors such as TOKEN_NOT_FOUND,
+  add examples or scripts around AllSetProvider.bridge, or debug bridge errors such as TOKEN_NOT_FOUND,
   INVALID_ADDRESS, INVALID_PARAMS, UNSUPPORTED_OPERATION, and relayer or transaction failures.
 metadata:
-  version: 0.1.2
+  version: 0.2.0
 ---
 
 # AllSet SDK
@@ -27,8 +27,7 @@ npm install @fastxyz/sdk @fastxyz/allset-sdk
 
 This package exports:
 
-- `AllSetProvider`: configurable provider for network/chain settings
-- `allsetProvider`: singleton bridge provider with `bridge(...)` (backwards compatible)
+- `AllSetProvider`: configurable provider for network/chain settings and bridging
 - `createEvmExecutor(privateKey, rpcUrl, chainId)`: a viem-based EVM transaction executor
 - `createEvmWallet(keyOrPath?)`: generate, derive, or load EVM wallets
 - `saveEvmWallet(wallet, path)`: persist EVM wallets to disk
@@ -89,27 +88,27 @@ Do not start coding until you confirm the requested chain, token, and direction 
 
 ### 2. Setting up AllSetProvider
 
-The `AllSetProvider` manages network configuration. There are multiple ways to set it up:
+The `AllSetProvider` manages network configuration and provides the `bridge()` method.
 
 #### Default setup (testnet)
 
 ```ts
 import { AllSetProvider } from '@fastxyz/allset-sdk';
 
-const provider = new AllSetProvider();
+const allset = new AllSetProvider();
 // Uses bundled data/networks.json with testnet config
 ```
 
 #### Mainnet setup
 
 ```ts
-const provider = new AllSetProvider({ network: 'mainnet' });
+const allset = new AllSetProvider({ network: 'mainnet' });
 ```
 
 #### Custom config file
 
 ```ts
-const provider = new AllSetProvider({ 
+const allset = new AllSetProvider({ 
   configPath: './my-networks.json' 
 });
 ```
@@ -117,7 +116,7 @@ const provider = new AllSetProvider({
 #### Override cross-sign URL
 
 ```ts
-const provider = new AllSetProvider({ 
+const allset = new AllSetProvider({ 
   network: 'testnet',
   crossSignUrl: 'https://my-custom-cross-sign.example.com' 
 });
@@ -141,33 +140,23 @@ initUserConfig();
 // Then edit ~/.allset/networks.json with your custom values
 ```
 
-#### Directory structure
-
-```
-~/.allset/
-├── networks.json          # Custom network config (overrides bundled)
-└── .evm/
-    └── keys/
-        └── default.json   # EVM wallet keyfiles
-```
-
 #### Accessing configuration
 
 ```ts
-const provider = new AllSetProvider();
+const allset = new AllSetProvider();
 
 // List supported chains
-console.log(provider.chains); // ['ethereum', 'arbitrum']
+console.log(allset.chains); // ['ethereum', 'arbitrum']
 
 // Get cross-sign URL
-console.log(provider.crossSignUrl);
+console.log(allset.crossSignUrl);
 
 // Get chain config
-const arbConfig = provider.getChainConfig('arbitrum');
+const arbConfig = allset.getChainConfig('arbitrum');
 // { chainId: 421614, bridgeContract: '0x...', fastBridgeAddress: 'fast1...', relayerUrl: '...' }
 
 // Get token config (handles fastUSDC → USDC normalization)
-const usdcConfig = provider.getTokenConfig('arbitrum', 'USDC');
+const usdcConfig = allset.getTokenConfig('arbitrum', 'USDC');
 // { evmAddress: '0x...', fastTokenId: '...', decimals: 6 }
 ```
 
@@ -240,12 +229,14 @@ saveEvmWallet(evmWallet, '~/.allset/.evm/keys/same-key.json');
 - Require `evmExecutor`
 - Require a Fast bech32m receiver address (`fast1...`)
 - Use `createEvmExecutor(...)` unless the user already has a compatible executor
-- Call `allsetProvider.bridge(...)` with `fromChain` set to the EVM chain and `toChain: 'fast'`
+- Call `allset.bridge(...)` with `fromChain` set to the EVM chain and `toChain: 'fast'`
 
 Example:
 
 ```ts
-import { createEvmExecutor, allsetProvider } from '@fastxyz/allset-sdk';
+import { AllSetProvider, createEvmExecutor } from '@fastxyz/allset-sdk';
+
+const allset = new AllSetProvider({ network: 'testnet' });
 
 // Your EVM wallet that holds USDC
 const evmExecutor = createEvmExecutor(
@@ -254,7 +245,7 @@ const evmExecutor = createEvmExecutor(
   421614,
 );
 
-const result = await allsetProvider.bridge({
+const result = await allset.bridge({
   fromChain: 'arbitrum',
   toChain: 'fast',
   fromToken: 'USDC',
@@ -272,19 +263,20 @@ const result = await allsetProvider.bridge({
 - Require `fastWallet` from `@fastxyz/sdk`
 - Refer to the [fast-sdk repository](https://github.com/fastxyz/fast-sdk) or `@fastxyz/sdk` package for the different ways to set up the provider and wallet (e.g., `fromKeyfile`, `fromPrivateKey`, `generate`)
 - Use an EVM receiver address (`0x...`)
-- Call `allsetProvider.bridge(...)` with `fromChain: 'fast'`
+- Call `allset.bridge(...)` with `fromChain: 'fast'`
 
 **Example: Withdraw to your own EVM address**
 
 ```ts
 import { FastProvider, FastWallet } from '@fastxyz/sdk';
-import { allsetProvider } from '@fastxyz/allset-sdk';
+import { AllSetProvider } from '@fastxyz/allset-sdk';
 
-// Create Fast wallet (see @fastxyz/sdk for setup options)
-const provider = new FastProvider({ network: 'testnet' });
-const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
+const fastProvider = new FastProvider({ network: 'testnet' });
+const allset = new AllSetProvider({ network: 'testnet' });
 
-const result = await allsetProvider.bridge({
+const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);
+
+const result = await allset.bridge({
   fromChain: 'fast',
   toChain: 'arbitrum',
   fromToken: 'fastUSDC',
@@ -303,13 +295,15 @@ You can withdraw to any EVM address, not just your own:
 
 ```ts
 import { FastProvider, FastWallet } from '@fastxyz/sdk';
-import { allsetProvider } from '@fastxyz/allset-sdk';
+import { AllSetProvider } from '@fastxyz/allset-sdk';
 
-const provider = new FastProvider({ network: 'testnet' });
-const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
+const fastProvider = new FastProvider({ network: 'testnet' });
+const allset = new AllSetProvider({ network: 'testnet' });
+
+const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);
 
 // Withdraw to a different EVM address (e.g., another user, merchant, exchange)
-const result = await allsetProvider.bridge({
+const result = await allset.bridge({
   fromChain: 'fast',
   toChain: 'arbitrum',
   fromToken: 'fastUSDC',
@@ -348,7 +342,7 @@ If you change code in this repo:
 
 ### `AllSetProvider`
 
-Configurable provider for AllSet bridge settings.
+Configurable provider for AllSet bridge operations.
 
 **Constructor:**
 
@@ -376,42 +370,12 @@ new AllSetProvider(options?: AllSetProviderOptions)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `bridge(params)` | `Promise<BridgeResult>` | Bridge tokens (see params below) |
+| `bridge(params)` | `Promise<BridgeResult>` | Bridge tokens between chains |
 | `getChainConfig(chain)` | `ChainConfig \| null` | Get chain configuration |
 | `getTokenConfig(chain, token)` | `TokenConfig \| null` | Get token configuration |
 | `getNetworkConfig()` | `NetworkConfig` | Get full network config |
 
-**Example:**
-
-```ts
-import { FastProvider, FastWallet } from '@fastxyz/sdk';
-import { AllSetProvider } from '@fastxyz/allset-sdk';
-
-// Create providers
-const fastProvider = new FastProvider({ network: 'testnet' });
-const allset = new AllSetProvider({ network: 'testnet' });
-
-// Create wallet
-const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);
-
-// Bridge using the provider
-const result = await allset.bridge({
-  fromChain: 'fast',
-  toChain: 'arbitrum',
-  fromToken: 'fastUSDC',
-  toToken: 'USDC',
-  fromDecimals: 6,
-  amount: '1000000',
-  senderAddress: fastWallet.address,
-  receiverAddress: '0xYourEvmAddress',
-  fastWallet,
-});
-```
-
-### `allsetProvider.bridge(params)` (singleton)
-
-> **Note:** `allsetProvider` is a backwards-compatible singleton using default testnet config.
-> For configurable usage, use `new AllSetProvider(options)` instead.
+### `AllSetProvider.bridge(params)`
 
 Bridge tokens between Fast network and EVM chains.
 
@@ -435,7 +399,15 @@ Bridge tokens between Fast network and EVM chains.
 **Example:**
 
 ```ts
-const result = await allsetProvider.bridge({
+import { FastProvider, FastWallet } from '@fastxyz/sdk';
+import { AllSetProvider } from '@fastxyz/allset-sdk';
+
+const fastProvider = new FastProvider({ network: 'testnet' });
+const allset = new AllSetProvider({ network: 'testnet' });
+
+const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);
+
+const result = await allset.bridge({
   fromChain: 'fast',
   toChain: 'arbitrum',
   fromToken: 'fastUSDC',
@@ -443,7 +415,7 @@ const result = await allsetProvider.bridge({
   fromDecimals: 6,
   amount: '1000000',
   senderAddress: fastWallet.address,
-  receiverAddress: '0xReceiverAddress',
+  receiverAddress: '0xYourEvmAddress',
   fastWallet,
 });
 
@@ -540,7 +512,7 @@ Request EVM cross-signing for a Fast network certificate. This is used internall
 
 **When to use:**
 
-- Building custom bridge flows outside of `allsetProvider.bridge()`
+- Building custom bridge flows outside of `AllSetProvider.bridge()`
 - Debugging cross-sign failures
 - Implementing multi-step transactions where you need the signed payload before submitting to the relayer
 
@@ -609,7 +581,7 @@ Common causes:
 
 Fix:
 
-- Inspect `CHAIN_TOKENS` in `src/bridge.ts`
+- Inspect token config in `data/networks.json`
 - Add the missing token mapping if the user wants to extend support
 - Otherwise tell the user the requested route is not implemented yet
 
@@ -636,38 +608,46 @@ Fix:
 - Check token balance, allowance path, and RPC correctness
 - For withdrawals, inspect the relayer response text from the thrown error
 
-## Migration from v0.1.1
+## Migration from v0.1.x
 
-If upgrading from a previous version that used `createFastClient`:
+If upgrading from a previous version:
 
-**Before (v0.1.1 and earlier):**
+**Before (v0.1.x with singleton):**
 ```ts
-import { createFastClient, createFastWallet, allsetProvider } from '@fastxyz/allset-sdk';
-
-const wallet = createFastWallet();
-const fastClient = createFastClient({
-  privateKey: wallet.privateKey,
-  publicKey: wallet.publicKey,
-});
-
-await allsetProvider.bridge({ ..., fastClient });
-```
-
-**After (v0.1.2+):**
-```ts
-import { FastProvider, FastWallet } from '@fastxyz/sdk';
 import { allsetProvider } from '@fastxyz/allset-sdk';
 
-const provider = new FastProvider({ network: 'testnet' });
-const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
+await allsetProvider.bridge({ ... });
+```
 
-await allsetProvider.bridge({ ..., fastWallet });
+**After (v0.2.0+ with AllSetProvider class):**
+```ts
+import { AllSetProvider } from '@fastxyz/allset-sdk';
+
+const allset = new AllSetProvider({ network: 'testnet' });
+await allset.bridge({ ... });
+```
+
+**If upgrading from createFastClient (v0.1.1 and earlier):**
+```ts
+// Before
+import { createFastClient, createFastWallet, allsetProvider } from '@fastxyz/allset-sdk';
+const wallet = createFastWallet();
+const fastClient = createFastClient({ privateKey: wallet.privateKey, publicKey: wallet.publicKey });
+await allsetProvider.bridge({ ..., fastClient });
+
+// After
+import { FastProvider, FastWallet } from '@fastxyz/sdk';
+import { AllSetProvider } from '@fastxyz/allset-sdk';
+const fastProvider = new FastProvider({ network: 'testnet' });
+const allset = new AllSetProvider({ network: 'testnet' });
+const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);
+await allset.bridge({ ..., fastWallet });
 ```
 
 ## Common Requests This Skill Should Trigger On
 
 - "Use the AllSet SDK to bridge USDC from Arbitrum Sepolia to Fast"
-- "Add a Node script that deposits through allsetProvider"
+- "Add a Node script that deposits through AllSetProvider"
 - "Wire createEvmExecutor into this backend"
 - "Use a FastWallet to withdraw fastUSDC to Arbitrum"
 - "Withdraw fastUSDC to a different EVM address"
