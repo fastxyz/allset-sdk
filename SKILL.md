@@ -258,6 +258,35 @@ const result = await allset.bridge({
 });
 ```
 
+**Example: Deposit to a different receiver**
+
+You can deposit to any Fast address, not just your own:
+
+```ts
+import { AllSetProvider, createEvmExecutor } from '@fastxyz/allset-sdk';
+
+const allset = new AllSetProvider({ network: 'testnet' });
+
+const evmExecutor = createEvmExecutor(
+  '<senderEvmPrivateKey>',
+  'https://sepolia-rollup.arbitrum.io/rpc',
+  421614,
+);
+
+// Deposit to a different Fast address (e.g., another user, merchant, exchange)
+const result = await allset.bridge({
+  fromChain: 'arbitrum',
+  toChain: 'fast',
+  fromToken: 'USDC',
+  toToken: 'fastUSDC',
+  fromDecimals: 6,
+  amount: '1000000',
+  senderAddress: '0xYourEvmAddress',
+  receiverAddress: 'fast1recipientaddress',  // Any valid Fast address
+  evmExecutor,
+});
+```
+
 #### Withdraw (Fast → EVM)
 
 - Require `fastWallet` from `@fastxyz/sdk`
