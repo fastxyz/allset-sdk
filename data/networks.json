@@ -4,9 +4,9 @@
     "chains": {
       "ethereum": {
         "chainId": 11155111,
-        "bridgeContract": "0x38b48764f6B12e1Dd5e4f8391d06d34Ba3920201",
-        "fastBridgeAddress": "fast19cjwajufyuqv883ydlvrp8xrhxejuvfe40pxq5dsrv675zgh89sqg9txs8",
-        "relayerUrl": "https://staging.omniset.fastset.xyz/ethereum-sepolia-relayer/relay",
+        "bridgeContract": "0xb0603ca3E1F1d6221A4F764a304dd8f27b874c0E",
+        "fastBridgeAddress": "fast1sg8fsgh9xuuly5crtqjyvsue0vae09p7xklfz6a57rcwajmdcpfqavue5f",
+        "relayerUrl": "https://staging.allset.fastset.xyz/ethereum-sepolia/relayer/relay",
         "tokens": {
           "USDC": {
             "evmAddress": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
@@ -22,11 +22,6 @@
         "relayerUrl": "https://staging.allset.fastset.xyz/arbitrum-sepolia/relayer/relay",
         "tokens": {
           "USDC": {
-            "evmAddress": "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
-            "fastTokenId": "b4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5",
-            "decimals": 6
-          },
-          "fastUSDC": {
             "evmAddress": "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
             "fastTokenId": "b4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5",
             "decimals": 6

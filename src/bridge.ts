@@ -54,14 +54,17 @@ function toAllSetTokenInfo(config: TokenConfig): AllSetTokenInfo {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function resolveAllSetToken(token: string, evmChain: string, network: 'testnet' | 'mainnet' = DEFAULT_NETWORK): AllSetTokenInfo | null {
+  // Normalize token name - fastUSDC on Fast maps to USDC on EVM
+  const normalizedToken = token.toLowerCase() === 'fastusdc' ? 'USDC' : token;
+
   // Try exact match first
-  const tokenConfig = getTokenConfig(evmChain, token, network);
+  const tokenConfig = getTokenConfig(evmChain, normalizedToken, network);
   if (tokenConfig) {
     return toAllSetTokenInfo(tokenConfig);
   }
 
   // Try uppercase
-  const upperConfig = getTokenConfig(evmChain, token.toUpperCase(), network);
+  const upperConfig = getTokenConfig(evmChain, normalizedToken.toUpperCase(), network);
   if (upperConfig) {
     return toAllSetTokenInfo(upperConfig);
   }
