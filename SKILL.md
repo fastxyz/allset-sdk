@@ -6,7 +6,7 @@ description: >
   add examples or scripts around AllSetProvider.bridge, or debug bridge errors such as TOKEN_NOT_FOUND,
   INVALID_ADDRESS, INVALID_PARAMS, UNSUPPORTED_OPERATION, and relayer or transaction failures.
 metadata:
-  version: 0.2.0
+  version: 0.1.2
 ---
 
 # AllSet SDK
@@ -607,42 +607,6 @@ Fix:
 
 - Check token balance, allowance path, and RPC correctness
 - For withdrawals, inspect the relayer response text from the thrown error
-
-## Migration from v0.1.x
-
-If upgrading from a previous version:
-
-**Before (v0.1.x with singleton):**
-```ts
-import { allsetProvider } from '@fastxyz/allset-sdk';
-
-await allsetProvider.bridge({ ... });
-```
-
-**After (v0.2.0+ with AllSetProvider class):**
-```ts
-import { AllSetProvider } from '@fastxyz/allset-sdk';
-
-const allset = new AllSetProvider({ network: 'testnet' });
-await allset.bridge({ ... });
-```
-
-**If upgrading from createFastClient (v0.1.1 and earlier):**
-```ts
-// Before
-import { createFastClient, createFastWallet, allsetProvider } from '@fastxyz/allset-sdk';
-const wallet = createFastWallet();
-const fastClient = createFastClient({ privateKey: wallet.privateKey, publicKey: wallet.publicKey });
-await allsetProvider.bridge({ ..., fastClient });
-
-// After
-import { FastProvider, FastWallet } from '@fastxyz/sdk';
-import { AllSetProvider } from '@fastxyz/allset-sdk';
-const fastProvider = new FastProvider({ network: 'testnet' });
-const allset = new AllSetProvider({ network: 'testnet' });
-const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);
-await allset.bridge({ ..., fastWallet });
-```
 
 ## Common Requests This Skill Should Trigger On
 
