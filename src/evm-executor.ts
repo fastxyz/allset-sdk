@@ -18,13 +18,21 @@ import { arbitrumSepolia, sepolia } from 'viem/chains';
 import type { EvmTxExecutor } from './types.js';
 
 /**
- * Generate a new EVM wallet (private key + address).
+ * Create an EVM wallet from an existing private key, or generate a new one.
+ *
+ * @param privateKey - Optional hex private key (with or without 0x prefix).
+ *                     If provided, derives the address from it.
+ *                     If not provided, generates a new random wallet.
  *
  * @example
  * ```ts
+ * // Generate new wallet
  * const wallet = createEvmWallet();
  * console.log(wallet.address); // 0x...
- * // Persist wallet.privateKey securely. Never log or commit it.
+ *
+ * // Derive from existing Fast key (same-key pattern)
+ * const keys = await fastWallet.exportKeys();
+ * const evmWallet = createEvmWallet(keys.privateKey);
  *
  * // Use with createEvmExecutor
  * const executor = createEvmExecutor(wallet.privateKey, rpcUrl, chainId);
@@ -32,11 +40,13 @@ import type { EvmTxExecutor } from './types.js';
  *
  * @returns Object containing privateKey and address
  */
-export function createEvmWallet(): { privateKey: `0x${string}`; address: `0x${string}` } {
-  const privateKey = generatePrivateKey();
-  const account = privateKeyToAccount(privateKey);
+export function createEvmWallet(privateKey?: string): { privateKey: `0x${string}`; address: `0x${string}` } {
+  const key = privateKey
+    ? ((privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`) as `0x${string}`)
+    : generatePrivateKey();
+  const account = privateKeyToAccount(key);
   return {
-    privateKey,
+    privateKey: key,
     address: account.address,
   };
 }

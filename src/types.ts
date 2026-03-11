@@ -2,17 +2,6 @@
  * types.ts — AllSet SDK types
  */
 
-export interface FastClient {
-  submit(params: {
-    recipient: string;
-    claim: Record<string, unknown>;
-  }): Promise<{ txHash: string; certificate: unknown }>;
-  evmSign(params: {
-    certificate: unknown;
-  }): Promise<{ transaction: number[]; signature: string }>;
-  readonly address: string | null;
-}
-
 export interface EvmTxExecutor {
   sendTx(tx: {
     to: string;
@@ -28,24 +17,29 @@ export interface BridgeProvider {
   name: string;
   chains: string[];
   networks?: Array<'testnet' | 'mainnet'>;
-  bridge(params: {
-    fromChain: string;
-    fromChainId?: number;
-    toChain: string;
-    toChainId?: number;
-    fromToken: string;
-    toToken: string;
-    fromDecimals: number;
-    amount: string;
-    senderAddress: string;
-    receiverAddress: string;
-    evmExecutor?: EvmTxExecutor;
-    fastClient?: FastClient;
-  }): Promise<{
-    txHash: string;
-    orderId: string;
-    estimatedTime?: string;
-  }>;
+  bridge(params: BridgeParams): Promise<BridgeResult>;
+}
+
+export interface BridgeParams {
+  fromChain: string;
+  fromChainId?: number;
+  toChain: string;
+  toChainId?: number;
+  fromToken: string;
+  toToken: string;
+  fromDecimals: number;
+  amount: string;
+  senderAddress: string;
+  receiverAddress: string;
+  evmExecutor?: EvmTxExecutor;
+  /** FastWallet from @fastxyz/sdk — required for withdrawals (Fast → EVM) */
+  fastWallet?: import('@fastxyz/sdk').FastWallet;
+}
+
+export interface BridgeResult {
+  txHash: string;
+  orderId: string;
+  estimatedTime?: string;
 }
 
 export interface AllSetChainConfig {

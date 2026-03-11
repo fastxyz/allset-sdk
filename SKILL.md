@@ -2,18 +2,26 @@
 name: allset-sdk
 description: >
   AllSet SDK for bridging tokens between Fast network and EVM chains. Use when the user asks to bridge
-  USDC or fastUSDC between Fast and Arbitrum/Ethereum Sepolia, wire createEvmExecutor or createFastClient,
+  USDC or fastUSDC between Fast and Arbitrum/Ethereum Sepolia, wire createEvmExecutor with FastWallet,
   add examples or scripts around allsetProvider.bridge, or debug bridge errors such as TOKEN_NOT_FOUND,
   INVALID_ADDRESS, INVALID_PARAMS, UNSUPPORTED_OPERATION, and relayer or transaction failures.
 metadata:
-  version: 0.1.0
+  version: 0.2.0
 ---
 
 # AllSet SDK
 
 Use this skill for work in this repository or in another codebase that needs to consume this package.
 
-It assumes Node.js 18+ and network access to EVM RPC endpoints and AllSet relayer URLs.
+It assumes Node.js 20+ and network access to EVM RPC endpoints and AllSet relayer URLs.
+
+## Prerequisites
+
+This SDK requires `@fastxyz/sdk` as a peer dependency:
+
+```bash
+npm install @fastxyz/sdk @fastxyz/allset-sdk
+```
 
 ## What This SDK Does
 
@@ -21,8 +29,10 @@ This package exports:
 
 - `allsetProvider`: the bridge provider with `bridge(...)`
 - `createEvmExecutor(privateKey, rpcUrl, chainId)`: a viem-based EVM transaction executor
-- `createFastClient(options)`: a Fast network client for withdrawals
-- `createEvmWallet()`: utility to generate new EVM wallets
+- `createEvmWallet(privateKey?)`: utility to generate or derive EVM wallets
+- `evmSign(certificate, crossSignUrl?)`: AllSet-specific cross-signing
+
+**Important:** This SDK no longer exports Fast wallet/client utilities. Use `FastWallet` and `FastProvider` from `@fastxyz/sdk` instead.
 
 ## Current Support Matrix
 
@@ -44,7 +54,7 @@ Read only what you need:
 - `src/index.ts` for public exports
 - `src/bridge.ts` for chain config, token resolution, deposit flow, withdrawal flow, and relayer behavior
 - `src/evm-executor.ts` for the viem transaction executor
-- `src/types.ts` for the `FastClient`, `EvmTxExecutor`, and `BridgeProvider` interfaces
+- `src/types.ts` for the `EvmTxExecutor` and `BridgeProvider` interfaces
 - `README.md` for human-facing usage examples
 
 ## Workflow
@@ -55,7 +65,7 @@ Classify the task first:
 
 - Deposit: EVM to Fast
 - Withdrawal: Fast to EVM
-- SDK integration: importing package, wiring executor, or passing a `fastClient`
+- SDK integration: importing package, wiring executor, or passing a `fastWallet`
 - SDK extension: adding chains, tokens, examples, or scripts
 - Debugging: interpreting a thrown `FastError`
 
@@ -96,15 +106,23 @@ const result = await allsetProvider.bridge({
 
 For Fast to EVM withdrawals:
 
-- Require `fastClient`
-- `fastClient` must implement `submit(...)`, `evmSign(...)`, and `address`
+- Require `fastWallet` from `@fastxyz/sdk`
 - Use an EVM receiver address (`0x...`)
 - Call `allsetProvider.bridge(...)` with `fromChain: 'fast'`
 
 Example:
 
 ```ts
-import { allsetProvider } from '@fastxyz/allset-sdk';
+import { FastProvider, FastWallet } from '@fastxyz/sdk';
+import { allsetProvider, createEvmWallet } from '@fastxyz/allset-sdk';
+
+// Create Fast wallet
+const provider = new FastProvider({ network: 'testnet' });
+const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
+
+// Derive EVM wallet from same key
+const keys = await fastWallet.exportKeys();
+const evmWallet = createEvmWallet(keys.privateKey);
 
 const result = await allsetProvider.bridge({
   fromChain: 'fast',
@@ -113,31 +131,51 @@ const result = await allsetProvider.bridge({
   toToken: 'USDC',
   fromDecimals: 6,
   amount: '1000000',
-  senderAddress: 'fast1yourfastaddress',
-  receiverAddress: '0xYourEvmAddress',
-  fastClient,
+  senderAddress: fastWallet.address,
+  receiverAddress: evmWallet.address,
+  fastWallet,
 });
 ```
 
-### 3. Respect implementation details
+### 3. Same-Key Pattern
+
+For convenience, you can derive an EVM wallet from the same private key as your Fast wallet:
+
+```ts
+import { FastProvider, FastWallet } from '@fastxyz/sdk';
+import { createEvmWallet } from '@fastxyz/allset-sdk';
+
+const provider = new FastProvider({ network: 'testnet' });
+const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
+
+// Derive EVM address from Fast private key
+const keys = await fastWallet.exportKeys();
+const evmWallet = createEvmWallet(keys.privateKey);
+
+console.log('Fast address:', fastWallet.address);
+console.log('EVM address:', evmWallet.address);
+```
+
+### 4. Respect implementation details
 
 When reasoning about behavior, use the code as the source of truth:
 
 - Token resolution is driven by `CHAIN_TOKENS` in `src/bridge.ts`
 - Supported bridge routes are enforced in `allsetProvider.bridge(...)`
 - Withdrawal posts to the relayer URL from `CHAIN_CONFIGS`
-- The package throws `FastError`-style errors from `src/fast-compat.ts`
+- The package throws `FastError` from `@fastxyz/sdk`
 
 Do not invent additional token aliases, chain IDs, or mainnet support.
 
-### 4. Validate after edits
+### 5. Validate after edits
 
 If you change code in this repo:
 
 1. Update the implementation in `src/`
 2. Keep `README.md` and this `SKILL.md` aligned with any capability changes
 3. Run `npm run build`
-4. Report any remaining gaps explicitly
+4. Run `npm test`
+5. Report any remaining gaps explicitly
 
 ## Troubleshooting
 
@@ -146,12 +184,12 @@ If you change code in this repo:
 Common causes:
 
 - Deposit call missing `evmExecutor`
-- Withdrawal call missing `fastClient`
+- Withdrawal call missing `fastWallet`
 
 Fix:
 
 - For deposits, create an executor with `createEvmExecutor(...)`
-- For withdrawals, provide a compatible `fastClient`
+- For withdrawals, provide a `FastWallet` from `@fastxyz/sdk`
 
 ### `INVALID_ADDRESS`
 
@@ -201,18 +239,47 @@ Fix:
 - Check token balance, allowance path, and RPC correctness
 - For withdrawals, inspect the relayer response text from the thrown error
 
+## Migration from v0.1.x
+
+If upgrading from a previous version that used `createFastClient`:
+
+**Before (v0.1.x):**
+```ts
+import { createFastClient, createFastWallet, allsetProvider } from '@fastxyz/allset-sdk';
+
+const wallet = createFastWallet();
+const fastClient = createFastClient({
+  privateKey: wallet.privateKey,
+  publicKey: wallet.publicKey,
+});
+
+await allsetProvider.bridge({ ..., fastClient });
+```
+
+**After (v0.2.x):**
+```ts
+import { FastProvider, FastWallet } from '@fastxyz/sdk';
+import { allsetProvider } from '@fastxyz/allset-sdk';
+
+const provider = new FastProvider({ network: 'testnet' });
+const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
+
+await allsetProvider.bridge({ ..., fastWallet });
+```
+
 ## Common Requests This Skill Should Trigger On
 
 - "Use the AllSet SDK to bridge USDC from Arbitrum Sepolia to Fast"
 - "Add a Node script that deposits through allsetProvider"
 - "Wire createEvmExecutor into this backend"
-- "Use a Fast client to withdraw fastUSDC to Arbitrum"
+- "Use a FastWallet to withdraw fastUSDC to Arbitrum"
 - "Why do I get TOKEN_NOT_FOUND from allset-sdk?"
 - "Extend this SDK to support another token or chain"
+- "Derive an EVM wallet from my Fast private key"
 
 ## Requests This Skill Should Not Own
 
 - Generic EVM wallet work unrelated to AllSet bridging
-- Full Fast wallet implementation
+- Full Fast wallet implementation (use `@fastxyz/sdk`)
 - Mainnet bridge guidance when the code only supports testnet
 - Claims that Ethereum Sepolia token bridging already works without code changes

@@ -2,10 +2,12 @@
 
 Official TypeScript SDK for the AllSet bridge. Bridge tokens between Fast network and supported EVM routes, with the current branch focused on Arbitrum Sepolia and Fast testnet flows.
 
-## Install
+## Prerequisites
+
+Install both the Fast SDK and AllSet SDK:
 
 ```bash
-npm install @fastxyz/allset-sdk
+npm install @fastxyz/sdk @fastxyz/allset-sdk
 ```
 
 ## Quick Start
@@ -39,61 +41,99 @@ console.log(result.txHash);
 ### Withdraw (Fast → EVM)
 
 ```ts
-import { createFastWallet } from '@fastxyz/allset-sdk';
+import { FastProvider, FastWallet } from '@fastxyz/sdk';
+import { allsetProvider, createEvmWallet } from '@fastxyz/allset-sdk';
 
-const wallet = createFastWallet();
-console.log(wallet.address);
-// Persist wallet.privateKey and wallet.publicKey securely.
-```
+// Create Fast wallet
+const provider = new FastProvider({ network: 'testnet' });
+const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
 
-Store that keypair securely, then use it with `createFastClient()`:
+// Optionally create EVM wallet with same private key (same-key pattern)
+const keys = await fastWallet.exportKeys();
+const evmWallet = createEvmWallet(keys.privateKey);
 
-```ts
-import { createFastClient, allsetProvider } from '@fastxyz/allset-sdk';
-
-const fastClient = createFastClient({
-  privateKey: process.env.FAST_PRIVATE_KEY!, // 32-byte hex
-  publicKey: process.env.FAST_PUBLIC_KEY!,   // 32-byte hex
-});
-
+// Bridge Fast → EVM
 const result = await allsetProvider.bridge({
   fromChain: 'fast',
   toChain: 'arbitrum',
   fromToken: 'fastUSDC',
   toToken: 'USDC',
   fromDecimals: 6,
-  amount: '1000000', // 1 USDC (6 decimals)
-  senderAddress: fastClient.address!,
-  receiverAddress: '0xYourEvmAddress',
-  fastClient,
+  amount: '1000000', // 1 fastUSDC (6 decimals)
+  senderAddress: fastWallet.address,
+  receiverAddress: evmWallet.address,
+  fastWallet,
 });
 
 console.log(result.txHash);
 // { txHash: '0x...', orderId: '0x...', estimatedTime: '1-5 minutes' }
 ```
 
-Best practice: generate the Fast wallet once, store the private/public keys in your secret manager or environment, and pass those stored values into `createFastClient()`. Do not generate a fresh wallet on every app start unless that is explicitly what you want.
+## Same-Key Pattern
+
+You can derive an EVM wallet from the same private key as your Fast wallet. This is useful when you want a single keypair for both networks:
+
+```ts
+import { FastProvider, FastWallet } from '@fastxyz/sdk';
+import { createEvmWallet } from '@fastxyz/allset-sdk';
+
+// Create or load Fast wallet
+const provider = new FastProvider({ network: 'testnet' });
+const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
+
+// Derive EVM wallet from the same private key
+const keys = await fastWallet.exportKeys();
+const evmWallet = createEvmWallet(keys.privateKey);
+
+console.log('Fast address:', fastWallet.address);
+console.log('EVM address:', evmWallet.address);
+```
 
 ## Features
 
 - **Deposit** - Bridge USDC from EVM chains to fastUSDC on Fast
 - **Withdraw** - Bridge fastUSDC from Fast to USDC on EVM chains
 - **EVM Executor** - Built-in viem-based transaction executor
-- **Fast Client** - Built-in Fast network client for withdrawals
-- **Fast Wallet Generator** - Generate a Fast keypair and address without another SDK
+- **evmSign** - AllSet-specific cross-signing for bridge verification
+- **Same-key EVM wallet** - Derive EVM address from Fast private key
+
+## API Reference
+
+### `allsetProvider.bridge(params)`
+
+Bridge tokens between Fast network and EVM chains.
+
+**Parameters:**
+- `fromChain` - Source chain: `'fast'`, `'ethereum'`, or `'arbitrum'`
+- `toChain` - Destination chain: `'fast'`, `'ethereum'`, or `'arbitrum'`
+- `fromToken` - Source token symbol or address
+- `toToken` - Destination token symbol or address
+- `fromDecimals` - Token decimals
+- `amount` - Amount in smallest units (string)
+- `senderAddress` - Sender's address on source chain
+- `receiverAddress` - Receiver's address on destination chain
+- `evmExecutor` - (Deposits only) EVM executor from `createEvmExecutor()`
+- `fastWallet` - (Withdrawals only) FastWallet from `@fastxyz/sdk`
+
+### `createEvmExecutor(privateKey, rpcUrl, chainId)`
+
+Create an EVM transaction executor.
+
+### `createEvmWallet(privateKey?)`
+
+Create or derive an EVM wallet. If `privateKey` is provided, derives the address from it. Otherwise generates a new random wallet.
+
+### `evmSign(certificate, crossSignUrl?)`
+
+Request EVM cross-signing for a Fast network certificate. Used internally by the bridge but exposed for advanced use cases.
 
 ## Supported Networks
 
-Current SDK implementation in this branch:
+Current SDK implementation:
 
 - Testnet-only bridge flows
 - Arbitrum Sepolia (`421614`) + Fast testnet
-- Token mapping for `USDC` <-> `fastUSDC`
-
-Environment target matrix for AllSet deployments:
-
-- Mainnet: Polygon, Arbitrum, Base with `USDC` -> `fastUSDC`
-- Testnet: Sepolia, Arbitrum Sepolia, Tempo with testnet `USDC` -> `testUSDC`
+- Token mapping for `USDC` ↔ `fastUSDC`
 
 ## Documentation
 

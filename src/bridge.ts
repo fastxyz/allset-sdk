@@ -10,12 +10,12 @@
 
 import { bech32m } from 'bech32';
 import { encodeAbiParameters, encodeFunctionData } from 'viem';
-import { FastError } from './fast-compat.js';
-import type { BridgeProvider, AllSetChainConfig, AllSetTokenInfo } from './types.js';
+import { FastError, type FastWallet } from '@fastxyz/sdk';
+import type { BridgeProvider, BridgeParams, BridgeResult, AllSetChainConfig, AllSetTokenInfo } from './types.js';
 
-function base64ToBytes(b64: string): Uint8Array {
-  return new Uint8Array(Buffer.from(b64, 'base64'));
-}
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const CROSS_SIGN_URL = 'https://staging.cross-sign.allset.fastset.xyz';
 
 const FAST_USDC_TOKEN_ID = hexToUint8Array('b4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5');
 const FAST_USDC_TOKEN_HEX = 'b4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5';
@@ -51,6 +51,8 @@ const CHAIN_TOKENS: Record<string, Record<string, AllSetTokenInfo>> = {
     },
   },
 };
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function resolveAllSetToken(token: string, evmChain: string): AllSetTokenInfo | null {
   const chainTokens = CHAIN_TOKENS[evmChain];
@@ -98,12 +100,85 @@ const BRIDGE_DEPOSIT_ABI = [{
   stateMutability: 'payable' as const,
 }];
 
+// ─── evmSign (AllSet cross-signing) ───────────────────────────────────────────
+
+export interface EvmSignResult {
+  transaction: number[];
+  signature: string;
+}
+
+/**
+ * Request EVM cross-signing for a Fast network certificate.
+ *
+ * This is an AllSet-specific operation that requests the AllSet committee
+ * to sign a certificate for verification on EVM chains.
+ *
+ * @param certificate - The certificate from a FastWallet.send() or FastWallet.submit() call
+ * @param crossSignUrl - Optional custom cross-sign service URL
+ * @returns The signed transaction bytes and signature for relayer submission
+ *
+ * @example
+ * ```ts
+ * const result = await fastWallet.send({ to: bridgeAddress, amount: '1000000', token: 'fastUSDC' });
+ * const signed = await evmSign(result.certificate);
+ * // Use signed.transaction and signed.signature with the relayer
+ * ```
+ */
+export async function evmSign(
+  certificate: unknown,
+  crossSignUrl: string = CROSS_SIGN_URL,
+): Promise<EvmSignResult> {
+  const res = await fetch(crossSignUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'crossSign_evmSignCertificate',
+      params: { certificate },
+    }),
+  });
+
+  if (!res.ok) {
+    throw new FastError(
+      'TX_FAILED',
+      `Cross-sign request failed: ${res.status}`,
+      { note: 'The AllSet cross-sign service rejected the request.' },
+    );
+  }
+
+  const json = await res.json() as {
+    result?: { transaction: number[]; signature: string };
+    error?: { message: string };
+  };
+
+  if (json.error) {
+    throw new FastError(
+      'TX_FAILED',
+      `Cross-sign error: ${json.error.message}`,
+      { note: 'The certificate could not be cross-signed.' },
+    );
+  }
+
+  if (!json.result?.transaction || !json.result?.signature) {
+    throw new FastError(
+      'TX_FAILED',
+      'Cross-sign returned invalid response',
+      { note: 'Missing transaction or signature in response.' },
+    );
+  }
+
+  return json.result;
+}
+
+// ─── AllSet Bridge Provider ───────────────────────────────────────────────────
+
 export const allsetProvider: BridgeProvider = {
   name: 'allset',
   chains: ['fast', 'ethereum', 'arbitrum'],
   networks: ['testnet'],
 
-  async bridge(params): Promise<{ txHash: string; orderId: string; estimatedTime?: string }> {
+  async bridge(params: BridgeParams): Promise<BridgeResult> {
     try {
       const isDeposit = params.fromChain !== 'fast' && params.toChain === 'fast';
       const isWithdraw = params.fromChain === 'fast';
@@ -119,273 +194,10 @@ export const allsetProvider: BridgeProvider = {
       }
 
       if (isDeposit) {
-        if (!params.evmExecutor) {
-          throw new FastError(
-            'INVALID_PARAMS',
-            'AllSet deposit (EVM → Fast) requires evmExecutor',
-            {
-              note: 'Provide an evmExecutor created with createEvmExecutor().\n  Example: const executor = createEvmExecutor(privateKey, rpcUrl, chainId)',
-            },
-          );
-        }
-
-        const chainConfig = CHAIN_CONFIGS[params.fromChain];
-        if (!chainConfig) {
-          throw new FastError(
-            'UNSUPPORTED_OPERATION',
-            `AllSet does not support EVM chain "${params.fromChain}". Supported: ${Object.keys(CHAIN_CONFIGS).join(', ')}`,
-            {
-              note: 'Use "ethereum" or "arbitrum" as the source chain for AllSet deposits.',
-            },
-          );
-        }
-
-        let tokenInfo = resolveAllSetToken(params.fromToken, params.fromChain);
-        if (!tokenInfo) {
-          tokenInfo = resolveAllSetToken(params.toToken, params.fromChain);
-        }
-        if (!tokenInfo) {
-          throw new FastError(
-            'TOKEN_NOT_FOUND',
-            `Cannot resolve token "${params.fromToken}" on AllSet for chain "${params.fromChain}".`,
-            {
-              note: 'Supported tokens: USDC, fastUSDC.\n  Example: await allset.bridge({ fromChain: "arbitrum", toChain: "fast", fromToken: "USDC", toToken: "fastUSDC", amount: "1000000", senderAddress: "0x...", receiverAddress: "fast1..." })',
-            },
-          );
-        }
-
-        let receiverBytes32: `0x${string}`;
-        try {
-          receiverBytes32 = fastAddressToBytes32(params.receiverAddress);
-        } catch (err: unknown) {
-          const msg = err instanceof Error ? err.message : String(err);
-          throw new FastError(
-            'INVALID_ADDRESS',
-            `Failed to decode Fast network receiver address "${params.receiverAddress}": ${msg}`,
-            {
-              note: 'The receiver address must be a valid Fast network bech32m address (fast1...).\n  Example: fast1abc...',
-            },
-          );
-        }
-
-        const calldata = encodeFunctionData({
-          abi: BRIDGE_DEPOSIT_ABI,
-          functionName: 'deposit',
-          args: [
-            tokenInfo.evmAddress as `0x${string}`,
-            BigInt(params.amount),
-            receiverBytes32,
-          ],
-        });
-
-        let txHash: string;
-
-        if (tokenInfo.isNative) {
-          const receipt = await params.evmExecutor.sendTx({
-            to: chainConfig.bridgeContract,
-            data: calldata,
-            value: params.amount,
-          });
-          if (receipt.status === 'reverted') {
-            throw new FastError(
-              'TX_FAILED',
-              `AllSet deposit transaction reverted: ${receipt.txHash}`,
-              {
-                note: 'The deposit transaction was reverted. Check that you have sufficient ETH balance.',
-              },
-            );
-          }
-          txHash = receipt.txHash;
-        } else {
-          const requiredAmount = BigInt(params.amount);
-          const currentAllowance = await params.evmExecutor.checkAllowance(
-            tokenInfo.evmAddress,
-            chainConfig.bridgeContract,
-            params.senderAddress,
-          );
-          if (currentAllowance < requiredAmount) {
-            await params.evmExecutor.approveErc20(
-              tokenInfo.evmAddress,
-              chainConfig.bridgeContract,
-              params.amount,
-            );
-          }
-
-          const receipt = await params.evmExecutor.sendTx({
-            to: chainConfig.bridgeContract,
-            data: calldata,
-            value: '0',
-          });
-          if (receipt.status === 'reverted') {
-            throw new FastError(
-              'TX_FAILED',
-              `AllSet deposit transaction reverted: ${receipt.txHash}`,
-              {
-                note: 'The deposit transaction was reverted. Check that you have sufficient token balance and the approval succeeded.',
-              },
-            );
-          }
-          txHash = receipt.txHash;
-        }
-
-        return {
-          txHash,
-          orderId: txHash,
-          estimatedTime: '1-5 minutes',
-        };
+        return await handleDeposit(params);
       }
 
-      if (!params.fastClient) {
-        throw new FastError(
-          'INVALID_PARAMS',
-          'AllSet withdrawal (Fast → EVM) requires fastClient',
-          {
-            note: 'Provide a compatible FastClient implementation with submit() and evmSign().',
-          },
-        );
-      }
-
-      const chainConfig = CHAIN_CONFIGS[params.toChain];
-      if (!chainConfig) {
-        throw new FastError(
-          'UNSUPPORTED_OPERATION',
-          `AllSet does not support EVM destination chain "${params.toChain}". Supported: ${Object.keys(CHAIN_CONFIGS).join(', ')}`,
-          {
-            note: 'Use "ethereum" or "arbitrum" as the destination chain for AllSet withdrawals.',
-          },
-        );
-      }
-
-      let tokenInfo = resolveAllSetToken(params.fromToken, params.toChain);
-      if (!tokenInfo) {
-        tokenInfo = resolveAllSetToken(params.toToken, params.toChain);
-      }
-      if (!tokenInfo) {
-        throw new FastError(
-          'TOKEN_NOT_FOUND',
-          `Cannot resolve token "${params.fromToken}" on AllSet for destination chain "${params.toChain}".`,
-          {
-            note: 'Supported tokens: USDC, fastUSDC.\n  Example: await allset.bridge({ fromChain: "fast", toChain: "arbitrum", fromToken: "fastUSDC", toToken: "USDC", amount: "1000000", senderAddress: "fast1...", receiverAddress: "0x..." })',
-          },
-        );
-      }
-
-      const evmTokenAddress = tokenInfo.evmAddress;
-
-      const transferResult = await params.fastClient.submit({
-        recipient: chainConfig.fastsetBridgeAddress,
-        claim: {
-          TokenTransfer: {
-            token_id: tokenInfo.fastsetTokenId,
-            amount: params.amount,
-            user_data: null,
-          },
-        },
-      });
-
-      const transferCrossSign = await params.fastClient.evmSign({
-        certificate: transferResult.certificate,
-      });
-
-      // Use the transaction hash directly (keccak256 of BCS-serialized transaction)
-      // This matches how x402-sdk and AllSetPortal compute the transfer ID
-      const transferFastTxId = transferResult.txHash as `0x${string}`;
-
-      const dynamicTransferPayload = encodeAbiParameters(
-        [{ type: 'address' }, { type: 'address' }],
-        [
-          evmTokenAddress as `0x${string}`,
-          params.receiverAddress as `0x${string}`,
-        ],
-      );
-
-      // Deadline: 1 hour from now
-      const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
-
-      const intentClaimEncoded = encodeAbiParameters(
-        [{
-          type: 'tuple',
-          components: [
-            { name: 'transferFastTxId', type: 'bytes32' },
-            { name: 'deadline', type: 'uint256' },
-            {
-              name: 'intents',
-              type: 'tuple[]',
-              components: [
-                { name: 'action', type: 'uint8' },
-                { name: 'payload', type: 'bytes' },
-                { name: 'value', type: 'uint256' },
-              ],
-            },
-          ],
-        }],
-        [{
-          transferFastTxId,
-          deadline,
-          intents: [{
-            action: 1,
-            payload: dynamicTransferPayload,
-            value: 0n,
-          }],
-        }],
-      );
-
-      const intentBytes = hexToUint8Array(intentClaimEncoded);
-
-      const intentResult = await params.fastClient.submit({
-        recipient: params.fastClient.address!,
-        claim: {
-          ExternalClaim: {
-            claim: {
-              verifier_committee: [] as Uint8Array[],
-              verifier_quorum: 0,
-              claim_data: Array.from(intentBytes),
-            },
-            signatures: [] as Array<[Uint8Array, Uint8Array]>,
-          },
-        },
-      });
-
-      const intentCrossSign = await params.fastClient.evmSign({
-        certificate: intentResult.certificate,
-      });
-
-      const relayerBody = {
-        encoded_transfer_claim: Array.from(new Uint8Array(transferCrossSign.transaction.map(Number))),
-        transfer_proof: transferCrossSign.signature,
-        transfer_fast_tx_id: transferResult.txHash,
-        transfer_claim_id: transferResult.txHash,
-        fastset_address: params.senderAddress,
-        external_address: params.receiverAddress,
-        encoded_intent_claim: Array.from(new Uint8Array(intentCrossSign.transaction.map(Number))),
-        intent_proof: intentCrossSign.signature,
-        intent_fast_tx_id: intentResult.txHash,
-        intent_claim_id: intentResult.txHash,
-        external_token_address: evmTokenAddress,
-      };
-
-      const relayRes = await fetch(chainConfig.relayerUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(relayerBody),
-      });
-
-      if (!relayRes.ok) {
-        const text = await relayRes.text();
-        throw new FastError(
-          'TX_FAILED',
-          `AllSet relayer request failed (${relayRes.status}): ${text}`,
-          {
-            note: 'The withdrawal was submitted to Fast network but the relayer rejected it. Try again.',
-          },
-        );
-      }
-
-      return {
-        txHash: transferResult.txHash,
-        orderId: transferFastTxId,
-        estimatedTime: '1-5 minutes',
-      };
+      return await handleWithdraw(params);
     } catch (err: unknown) {
       if (err instanceof FastError) throw err;
       const msg = err instanceof Error ? err.message : String(err);
@@ -399,3 +211,280 @@ export const allsetProvider: BridgeProvider = {
     }
   },
 };
+
+// ─── Deposit (EVM → Fast) ─────────────────────────────────────────────────────
+
+async function handleDeposit(params: BridgeParams): Promise<BridgeResult> {
+  if (!params.evmExecutor) {
+    throw new FastError(
+      'INVALID_PARAMS',
+      'AllSet deposit (EVM → Fast) requires evmExecutor',
+      {
+        note: 'Provide an evmExecutor created with createEvmExecutor().\n  Example: const executor = createEvmExecutor(privateKey, rpcUrl, chainId)',
+      },
+    );
+  }
+
+  const chainConfig = CHAIN_CONFIGS[params.fromChain];
+  if (!chainConfig) {
+    throw new FastError(
+      'UNSUPPORTED_OPERATION',
+      `AllSet does not support EVM chain "${params.fromChain}". Supported: ${Object.keys(CHAIN_CONFIGS).join(', ')}`,
+      {
+        note: 'Use "ethereum" or "arbitrum" as the source chain for AllSet deposits.',
+      },
+    );
+  }
+
+  let tokenInfo = resolveAllSetToken(params.fromToken, params.fromChain);
+  if (!tokenInfo) {
+    tokenInfo = resolveAllSetToken(params.toToken, params.fromChain);
+  }
+  if (!tokenInfo) {
+    throw new FastError(
+      'TOKEN_NOT_FOUND',
+      `Cannot resolve token "${params.fromToken}" on AllSet for chain "${params.fromChain}".`,
+      {
+        note: 'Supported tokens: USDC, fastUSDC.\n  Example: await allset.bridge({ fromChain: "arbitrum", toChain: "fast", fromToken: "USDC", toToken: "fastUSDC", amount: "1000000", senderAddress: "0x...", receiverAddress: "fast1..." })',
+      },
+    );
+  }
+
+  let receiverBytes32: `0x${string}`;
+  try {
+    receiverBytes32 = fastAddressToBytes32(params.receiverAddress);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new FastError(
+      'INVALID_ADDRESS',
+      `Failed to decode Fast network receiver address "${params.receiverAddress}": ${msg}`,
+      {
+        note: 'The receiver address must be a valid Fast network bech32m address (fast1...).\n  Example: fast1abc...',
+      },
+    );
+  }
+
+  const calldata = encodeFunctionData({
+    abi: BRIDGE_DEPOSIT_ABI,
+    functionName: 'deposit',
+    args: [
+      tokenInfo.evmAddress as `0x${string}`,
+      BigInt(params.amount),
+      receiverBytes32,
+    ],
+  });
+
+  let txHash: string;
+
+  if (tokenInfo.isNative) {
+    const receipt = await params.evmExecutor.sendTx({
+      to: chainConfig.bridgeContract,
+      data: calldata,
+      value: params.amount,
+    });
+    if (receipt.status === 'reverted') {
+      throw new FastError(
+        'TX_FAILED',
+        `AllSet deposit transaction reverted: ${receipt.txHash}`,
+        {
+          note: 'The deposit transaction was reverted. Check that you have sufficient ETH balance.',
+        },
+      );
+    }
+    txHash = receipt.txHash;
+  } else {
+    const requiredAmount = BigInt(params.amount);
+    const currentAllowance = await params.evmExecutor.checkAllowance(
+      tokenInfo.evmAddress,
+      chainConfig.bridgeContract,
+      params.senderAddress,
+    );
+    if (currentAllowance < requiredAmount) {
+      await params.evmExecutor.approveErc20(
+        tokenInfo.evmAddress,
+        chainConfig.bridgeContract,
+        params.amount,
+      );
+    }
+
+    const receipt = await params.evmExecutor.sendTx({
+      to: chainConfig.bridgeContract,
+      data: calldata,
+      value: '0',
+    });
+    if (receipt.status === 'reverted') {
+      throw new FastError(
+        'TX_FAILED',
+        `AllSet deposit transaction reverted: ${receipt.txHash}`,
+        {
+          note: 'The deposit transaction was reverted. Check that you have sufficient token balance and the approval succeeded.',
+        },
+      );
+    }
+    txHash = receipt.txHash;
+  }
+
+  return {
+    txHash,
+    orderId: txHash,
+    estimatedTime: '1-5 minutes',
+  };
+}
+
+// ─── Withdraw (Fast → EVM) ────────────────────────────────────────────────────
+
+async function handleWithdraw(params: BridgeParams): Promise<BridgeResult> {
+  if (!params.fastWallet) {
+    throw new FastError(
+      'INVALID_PARAMS',
+      'AllSet withdrawal (Fast → EVM) requires fastWallet',
+      {
+        note: 'Provide a FastWallet from @fastxyz/sdk.\n  Example: const wallet = await FastWallet.fromKeyfile("~/.fast/keys/default.json", provider)',
+      },
+    );
+  }
+
+  const chainConfig = CHAIN_CONFIGS[params.toChain];
+  if (!chainConfig) {
+    throw new FastError(
+      'UNSUPPORTED_OPERATION',
+      `AllSet does not support EVM destination chain "${params.toChain}". Supported: ${Object.keys(CHAIN_CONFIGS).join(', ')}`,
+      {
+        note: 'Use "ethereum" or "arbitrum" as the destination chain for AllSet withdrawals.',
+      },
+    );
+  }
+
+  let tokenInfo = resolveAllSetToken(params.fromToken, params.toChain);
+  if (!tokenInfo) {
+    tokenInfo = resolveAllSetToken(params.toToken, params.toChain);
+  }
+  if (!tokenInfo) {
+    throw new FastError(
+      'TOKEN_NOT_FOUND',
+      `Cannot resolve token "${params.fromToken}" on AllSet for destination chain "${params.toChain}".`,
+      {
+        note: 'Supported tokens: USDC, fastUSDC.\n  Example: await allset.bridge({ fromChain: "fast", toChain: "arbitrum", fromToken: "fastUSDC", toToken: "USDC", amount: "1000000", senderAddress: "fast1...", receiverAddress: "0x..." })',
+      },
+    );
+  }
+
+  const evmTokenAddress = tokenInfo.evmAddress;
+  const fastWallet = params.fastWallet;
+
+  // Step 1: Transfer tokens to bridge address on Fast network
+  const transferResult = await fastWallet.submit({
+    recipient: chainConfig.fastsetBridgeAddress,
+    claim: {
+      TokenTransfer: {
+        token_id: tokenInfo.fastsetTokenId,
+        amount: params.amount,
+        user_data: null,
+      },
+    },
+  });
+
+  // Step 2: Cross-sign the transfer certificate
+  const transferCrossSign = await evmSign(transferResult.certificate);
+
+  // Use the transaction hash directly (keccak256 of BCS-serialized transaction)
+  const transferFastTxId = transferResult.txHash as `0x${string}`;
+
+  // Step 3: Build intent claim
+  const dynamicTransferPayload = encodeAbiParameters(
+    [{ type: 'address' }, { type: 'address' }],
+    [
+      evmTokenAddress as `0x${string}`,
+      params.receiverAddress as `0x${string}`,
+    ],
+  );
+
+  // Deadline: 1 hour from now
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
+
+  const intentClaimEncoded = encodeAbiParameters(
+    [{
+      type: 'tuple',
+      components: [
+        { name: 'transferFastTxId', type: 'bytes32' },
+        { name: 'deadline', type: 'uint256' },
+        {
+          name: 'intents',
+          type: 'tuple[]',
+          components: [
+            { name: 'action', type: 'uint8' },
+            { name: 'payload', type: 'bytes' },
+            { name: 'value', type: 'uint256' },
+          ],
+        },
+      ],
+    }],
+    [{
+      transferFastTxId,
+      deadline,
+      intents: [{
+        action: 1,
+        payload: dynamicTransferPayload,
+        value: 0n,
+      }],
+    }],
+  );
+
+  const intentBytes = hexToUint8Array(intentClaimEncoded);
+
+  // Step 4: Submit intent claim to self
+  const intentResult = await fastWallet.submit({
+    recipient: fastWallet.address,
+    claim: {
+      ExternalClaim: {
+        claim: {
+          verifier_committee: [] as Uint8Array[],
+          verifier_quorum: 0,
+          claim_data: Array.from(intentBytes),
+        },
+        signatures: [] as Array<[Uint8Array, Uint8Array]>,
+      },
+    },
+  });
+
+  // Step 5: Cross-sign the intent certificate
+  const intentCrossSign = await evmSign(intentResult.certificate);
+
+  // Step 6: Submit to relayer
+  const relayerBody = {
+    encoded_transfer_claim: Array.from(new Uint8Array(transferCrossSign.transaction.map(Number))),
+    transfer_proof: transferCrossSign.signature,
+    transfer_fast_tx_id: transferResult.txHash,
+    transfer_claim_id: transferResult.txHash,
+    fastset_address: params.senderAddress,
+    external_address: params.receiverAddress,
+    encoded_intent_claim: Array.from(new Uint8Array(intentCrossSign.transaction.map(Number))),
+    intent_proof: intentCrossSign.signature,
+    intent_fast_tx_id: intentResult.txHash,
+    intent_claim_id: intentResult.txHash,
+    external_token_address: evmTokenAddress,
+  };
+
+  const relayRes = await fetch(chainConfig.relayerUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(relayerBody),
+  });
+
+  if (!relayRes.ok) {
+    const text = await relayRes.text();
+    throw new FastError(
+      'TX_FAILED',
+      `AllSet relayer request failed (${relayRes.status}): ${text}`,
+      {
+        note: 'The withdrawal was submitted to Fast network but the relayer rejected it. Try again.',
+      },
+    );
+  }
+
+  return {
+    txHash: transferResult.txHash,
+    orderId: transferFastTxId,
+    estimatedTime: '1-5 minutes',
+  };
+}

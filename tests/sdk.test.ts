@@ -4,9 +4,8 @@ import test from 'node:test';
 import {
   createEvmExecutor,
   createEvmWallet,
-  createFastClient,
-  createFastWallet,
   allsetProvider,
+  evmSign,
 } from '../src/index.ts';
 
 test('allsetProvider exposes expected metadata', () => {
@@ -53,7 +52,7 @@ test('deposit without evmExecutor is rejected', async () => {
   );
 });
 
-test('withdrawal without fastClient is rejected', async () => {
+test('withdrawal without fastWallet is rejected', async () => {
   await assert.rejects(
     () => allsetProvider.bridge({
       fromChain: 'fast',
@@ -96,115 +95,65 @@ test('createEvmWallet generates valid wallet', () => {
   assert.notEqual(wallet.address, wallet2.address, 'should generate unique addresses');
 });
 
-test('createFastWallet generates a usable Fast wallet', () => {
-  const wallet = createFastWallet();
-
-  assert.match(wallet.privateKey, /^[0-9a-f]{64}$/i);
-  assert.match(wallet.publicKey, /^[0-9a-f]{64}$/i);
-  assert.ok(wallet.address.startsWith('fast1'), 'address should be a Fast bech32m address');
-
-  const fastClient = createFastClient({
-    privateKey: wallet.privateKey,
-    publicKey: wallet.publicKey,
-  });
-  assert.equal(fastClient.address, wallet.address, 'client address should match generated address');
-
-  const wallet2 = createFastWallet();
-  assert.notEqual(wallet.privateKey, wallet2.privateKey, 'should generate unique private keys');
-  assert.notEqual(wallet.publicKey, wallet2.publicKey, 'should generate unique public keys');
-  assert.notEqual(wallet.address, wallet2.address, 'should generate unique addresses');
+test('createEvmWallet derives address from provided privateKey', () => {
+  // Generate a wallet first
+  const original = createEvmWallet();
+  
+  // Derive from the same private key
+  const derived = createEvmWallet(original.privateKey);
+  
+  // Should produce the same address
+  assert.equal(derived.privateKey, original.privateKey, 'privateKey should match');
+  assert.equal(derived.address, original.address, 'address should match');
+  
+  // Also works without 0x prefix
+  const derivedWithoutPrefix = createEvmWallet(original.privateKey.slice(2));
+  assert.equal(derivedWithoutPrefix.address, original.address, 'address should match without 0x prefix');
 });
 
-test('createFastClient rejects mismatched Fast keypairs', () => {
-  const wallet = createFastWallet();
-  const otherWallet = createFastWallet();
-
-  assert.throws(
-    () => createFastClient({
-      privateKey: wallet.privateKey,
-      publicKey: otherWallet.publicKey,
-    }),
-    /publicKey does not match/,
-  );
-});
-
-test('createFastClient preserves exact timestamp_nanos in submit and evmSign payloads', async (t) => {
+test('evmSign rejects invalid certificates', async (t) => {
   const originalFetch = globalThis.fetch;
-  const originalDateNow = Date.now;
 
-  let submitBody = '';
-  let crossSignBody = '';
-
-  const expectedTimestamp = 1_730_000_000_123_000_000n;
-  const tokenIdBytes = new Array(32).fill(0x07);
-  const wallet = createFastWallet();
-  const senderBytes = Array.from(Buffer.from(wallet.publicKey, 'hex'));
-
-  Date.now = () => 1_730_000_000_123;
-
-  globalThis.fetch = async (_input, init) => {
-    const body = String(init?.body ?? '');
-
-    if (body.includes('"method":"proxy_getAccountInfo"')) {
-      return new Response('{"result":{"next_nonce":7}}', {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (body.includes('"method":"proxy_submitTransaction"')) {
-      submitBody = body;
-      return new Response(
-        `{"result":{"Success":{"envelope":{"transaction":{"sender":[${senderBytes.join(',')}],"recipient":[${senderBytes.join(',')}],"nonce":7,"timestamp_nanos":${expectedTimestamp.toString()},"claim":{"TokenTransfer":{"token_id":[${tokenIdBytes.join(',')}],"amount":"f4240","user_data":null}},"archival":false}}}}}`,
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        },
-      );
-    }
-
-    if (body.includes('"method":"crossSign_evmSignCertificate"')) {
-      crossSignBody = body;
-      return Response.json({
-        result: {
-          transaction: [1, 2, 3],
-          signature: '0xabc',
-        },
-      });
-    }
-
-    throw new Error(`Unexpected fetch body: ${body}`);
+  globalThis.fetch = async () => {
+    return Response.json({
+      error: { message: 'Invalid certificate format' },
+    });
   };
 
   t.after(() => {
     globalThis.fetch = originalFetch;
-    Date.now = originalDateNow;
   });
 
-  const client = createFastClient({
-    privateKey: wallet.privateKey,
-    publicKey: wallet.publicKey,
-  });
-
-  const submitResult = await client.submit({
-    recipient: client.address!,
-    claim: {
-      TokenTransfer: {
-        token_id: Uint8Array.from(tokenIdBytes),
-        amount: '1000000',
-        user_data: null,
-      },
+  await assert.rejects(
+    () => evmSign({ envelope: { transaction: {} } }),
+    (error: unknown) => {
+      assert.equal((error as { code?: string }).code, 'TX_FAILED');
+      assert.match((error as Error).message, /Cross-sign error/);
+      return true;
     },
+  );
+});
+
+test('evmSign returns transaction and signature on success', async (t) => {
+  const originalFetch = globalThis.fetch;
+
+  const mockResult = {
+    transaction: [1, 2, 3, 4],
+    signature: '0xabcdef',
+  };
+
+  globalThis.fetch = async () => {
+    return Response.json({
+      result: mockResult,
+    });
+  };
+
+  t.after(() => {
+    globalThis.fetch = originalFetch;
   });
 
-  await client.evmSign({ certificate: submitResult.certificate });
-
-  assert.match(submitBody, new RegExp(`"timestamp_nanos":${expectedTimestamp.toString()}`));
-  assert.doesNotMatch(submitBody, /"timestamp_nanos":"\d+"/);
-  assert.match(crossSignBody, new RegExp(`"timestamp_nanos":${expectedTimestamp.toString()}`));
-
-  const certificate = submitResult.certificate as {
-    envelope: { transaction: { timestamp_nanos: bigint } };
-  };
-  assert.equal(certificate.envelope.transaction.timestamp_nanos, expectedTimestamp);
+  const result = await evmSign({ envelope: { transaction: {} } });
+  
+  assert.deepEqual(result.transaction, mockResult.transaction);
+  assert.equal(result.signature, mockResult.signature);
 });
