@@ -19,7 +19,7 @@ import { createEvmExecutor, allsetProvider } from '@fastxyz/allset-sdk';
 
 // Your EVM wallet that holds USDC
 const evmExecutor = createEvmExecutor(
-  senderEvmPrivateKey,  // Private key of the sender wallet
+  '<senderEvmPrivateKey>',  // Private key of the sender wallet
   'https://sepolia-rollup.arbitrum.io/rpc',
   421614
 );
