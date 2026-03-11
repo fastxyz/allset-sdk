@@ -42,15 +42,11 @@ console.log(result.txHash);
 
 ```ts
 import { FastProvider, FastWallet } from '@fastxyz/sdk';
-import { allsetProvider, createEvmWallet } from '@fastxyz/allset-sdk';
+import { allsetProvider } from '@fastxyz/allset-sdk';
 
 // Create Fast wallet
 const provider = new FastProvider({ network: 'testnet' });
 const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
-
-// Optionally create EVM wallet with same private key (same-key pattern)
-const keys = await fastWallet.exportKeys();
-const evmWallet = createEvmWallet(keys.privateKey);
 
 // Bridge Fast → EVM
 const result = await allsetProvider.bridge({
@@ -61,7 +57,7 @@ const result = await allsetProvider.bridge({
   fromDecimals: 6,
   amount: '1000000', // 1 fastUSDC (6 decimals)
   senderAddress: fastWallet.address,
-  receiverAddress: evmWallet.address,
+  receiverAddress: '0xYourEvmAddress',
   fastWallet,
 });
 
@@ -77,7 +73,6 @@ You can derive an EVM wallet from the same private key as your Fast wallet. This
 import { FastProvider, FastWallet } from '@fastxyz/sdk';
 import { createEvmWallet } from '@fastxyz/allset-sdk';
 
-// Create or load Fast wallet
 const provider = new FastProvider({ network: 'testnet' });
 const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', provider);
 
