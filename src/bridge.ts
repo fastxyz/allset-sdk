@@ -12,13 +12,12 @@ import { bech32m } from 'bech32';
 import { encodeAbiParameters, encodeFunctionData } from 'viem';
 import { FastError, type FastWallet } from '@fastxyz/sdk';
 import type { BridgeProvider, BridgeParams, BridgeResult, AllSetChainConfig, AllSetTokenInfo } from './types.js';
+import { getNetworkConfig, getChainConfig, getTokenConfig, type ChainConfig, type TokenConfig } from './config.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const CROSS_SIGN_URL = 'https://staging.cross-sign.allset.fastset.xyz';
-
-const FAST_USDC_TOKEN_ID = hexToUint8Array('b4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5');
-const FAST_USDC_TOKEN_HEX = 'b4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5';
+// Default network (can be overridden via environment variable)
+const DEFAULT_NETWORK = (process.env.ALLSET_NETWORK as 'testnet' | 'mainnet') || 'testnet';
 
 /**
  * Convert decimal amount string to hex for BCS serialization.
@@ -28,54 +27,53 @@ function amountToHex(amount: string): string {
   return BigInt(amount).toString(16);
 }
 
-const CHAIN_CONFIGS: Record<string, AllSetChainConfig> = {
-  ethereum: {
-    chainId: 11155111,
-    bridgeContract: '0x38b48764f6B12e1Dd5e4f8391d06d34Ba3920201',
-    fastsetBridgeAddress: 'fast19cjwajufyuqv883ydlvrp8xrhxejuvfe40pxq5dsrv675zgh89sqg9txs8',
-    relayerUrl: 'https://staging.omniset.fastset.xyz/ethereum-sepolia-relayer/relay',
-  },
-  arbitrum: {
-    chainId: 421614,
-    bridgeContract: '0xAc5164c04ee74c417e809916C65455499ae70eb6',
-    fastsetBridgeAddress: 'fast1x0g58phuf0pf32e9uvp3mv6hak4z37ytpqyfzjzhfsehua9kmegqwzv0td',
-    relayerUrl: 'https://staging.allset.fastset.xyz/arbitrum-sepolia/relayer/relay',
-  },
-};
+/**
+ * Convert ChainConfig from config.ts to AllSetChainConfig used internally.
+ */
+function toAllSetChainConfig(config: ChainConfig): AllSetChainConfig {
+  return {
+    chainId: config.chainId,
+    bridgeContract: config.bridgeContract,
+    fastsetBridgeAddress: config.fastBridgeAddress,
+    relayerUrl: config.relayerUrl,
+  };
+}
 
-const CHAIN_TOKENS: Record<string, Record<string, AllSetTokenInfo>> = {
-  arbitrum: {
-    USDC: {
-      evmAddress: '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d',
-      fastsetTokenId: FAST_USDC_TOKEN_ID,
-      decimals: 6,
-      isNative: false,
-    },
-    fastUSDC: {
-      evmAddress: '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d',
-      fastsetTokenId: FAST_USDC_TOKEN_ID,
-      decimals: 6,
-      isNative: false,
-    },
-  },
-};
+/**
+ * Convert TokenConfig from config.ts to AllSetTokenInfo used internally.
+ */
+function toAllSetTokenInfo(config: TokenConfig): AllSetTokenInfo {
+  return {
+    evmAddress: config.evmAddress,
+    fastsetTokenId: hexToUint8Array(config.fastTokenId),
+    decimals: config.decimals,
+    isNative: false,
+  };
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function resolveAllSetToken(token: string, evmChain: string): AllSetTokenInfo | null {
-  const chainTokens = CHAIN_TOKENS[evmChain];
-  if (!chainTokens) return null;
+function resolveAllSetToken(token: string, evmChain: string, network: 'testnet' | 'mainnet' = DEFAULT_NETWORK): AllSetTokenInfo | null {
+  // Try exact match first
+  const tokenConfig = getTokenConfig(evmChain, token, network);
+  if (tokenConfig) {
+    return toAllSetTokenInfo(tokenConfig);
+  }
 
-  const upper = token.toUpperCase();
-  if (chainTokens[upper]) return chainTokens[upper]!;
+  // Try uppercase
+  const upperConfig = getTokenConfig(evmChain, token.toUpperCase(), network);
+  if (upperConfig) {
+    return toAllSetTokenInfo(upperConfig);
+  }
 
-  if (chainTokens[token]) return chainTokens[token]!;
-
-  const clean = token.startsWith('0x') ? token.slice(2).toLowerCase() : token.toLowerCase();
-  if (clean === FAST_USDC_TOKEN_HEX) return chainTokens.USDC ?? null;
-
-  for (const info of Object.values(chainTokens)) {
-    if (info.evmAddress.toLowerCase() === token.toLowerCase()) return info;
+  // Try matching by EVM address
+  const chainConfig = getChainConfig(evmChain, network);
+  if (chainConfig) {
+    for (const [, info] of Object.entries(chainConfig.tokens)) {
+      if (info.evmAddress.toLowerCase() === token.toLowerCase()) {
+        return toAllSetTokenInfo(info);
+      }
+    }
   }
 
   return null;
@@ -134,9 +132,10 @@ export interface EvmSignResult {
  */
 export async function evmSign(
   certificate: unknown,
-  crossSignUrl: string = CROSS_SIGN_URL,
+  crossSignUrl?: string,
 ): Promise<EvmSignResult> {
-  const res = await fetch(crossSignUrl, {
+  const url = crossSignUrl ?? getNetworkConfig(DEFAULT_NETWORK).crossSignUrl;
+  const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -233,16 +232,18 @@ async function handleDeposit(params: BridgeParams): Promise<BridgeResult> {
     );
   }
 
-  const chainConfig = CHAIN_CONFIGS[params.fromChain];
-  if (!chainConfig) {
+  const chainConfigRaw = getChainConfig(params.fromChain, DEFAULT_NETWORK);
+  if (!chainConfigRaw) {
+    const networkConfig = getNetworkConfig(DEFAULT_NETWORK);
     throw new FastError(
       'UNSUPPORTED_OPERATION',
-      `AllSet does not support EVM chain "${params.fromChain}". Supported: ${Object.keys(CHAIN_CONFIGS).join(', ')}`,
+      `AllSet does not support EVM chain "${params.fromChain}". Supported: ${Object.keys(networkConfig.chains).join(', ')}`,
       {
         note: 'Use "ethereum" or "arbitrum" as the source chain for AllSet deposits.',
       },
     );
   }
+  const chainConfig = toAllSetChainConfig(chainConfigRaw);
 
   let tokenInfo = resolveAllSetToken(params.fromToken, params.fromChain);
   if (!tokenInfo) {
@@ -352,16 +353,18 @@ async function handleWithdraw(params: BridgeParams): Promise<BridgeResult> {
     );
   }
 
-  const chainConfig = CHAIN_CONFIGS[params.toChain];
-  if (!chainConfig) {
+  const chainConfigRaw = getChainConfig(params.toChain, DEFAULT_NETWORK);
+  if (!chainConfigRaw) {
+    const networkConfig = getNetworkConfig(DEFAULT_NETWORK);
     throw new FastError(
       'UNSUPPORTED_OPERATION',
-      `AllSet does not support EVM destination chain "${params.toChain}". Supported: ${Object.keys(CHAIN_CONFIGS).join(', ')}`,
+      `AllSet does not support EVM destination chain "${params.toChain}". Supported: ${Object.keys(networkConfig.chains).join(', ')}`,
       {
         note: 'Use "ethereum" or "arbitrum" as the destination chain for AllSet withdrawals.',
       },
     );
   }
+  const chainConfig = toAllSetChainConfig(chainConfigRaw);
 
   let tokenInfo = resolveAllSetToken(params.fromToken, params.toChain);
   if (!tokenInfo) {

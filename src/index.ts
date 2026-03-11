@@ -35,6 +35,13 @@
 
 export { allsetProvider, evmSign } from './bridge.js';
 export { createEvmExecutor, createEvmWallet, saveEvmWallet } from './evm-executor.js';
+export {
+  loadNetworksConfig,
+  getNetworkConfig,
+  getChainConfig,
+  getTokenConfig,
+  clearConfigCache,
+} from './config.js';
 
 export type {
   BridgeProvider,
@@ -47,3 +54,4 @@ export type {
 
 export type { EvmSignResult } from './bridge.js';
 export type { EvmWallet } from './evm-executor.js';
+export type { NetworkConfig, ChainConfig, TokenConfig, AllNetworksConfig } from './config.js';
