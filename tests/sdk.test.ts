@@ -1,31 +1,168 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 
 import {
   createEvmExecutor,
   createEvmWallet,
-  createFastClient,
-  createFastWallet,
-  allsetProvider,
+  AllSetProvider,
+  executeBridge,
+  evmSign,
+  IntentAction,
+  buildTransferIntent,
+  buildExecuteIntent,
+  buildDepositBackIntent,
+  buildRevokeIntent,
 } from '../src/index.ts';
 
-test('allsetProvider exposes expected metadata', () => {
-  assert.equal(allsetProvider.name, 'allset');
-  assert.deepEqual(allsetProvider.chains, ['fast', 'ethereum', 'arbitrum']);
-  assert.deepEqual(allsetProvider.networks, ['testnet']);
+const FAST_ADDRESS = 'fast1rsxfj84yhsskpr6g5ll2td7pkk3dnlsfwldsmawca4922qn3dqvqsxelzv';
+const EVM_ADDRESS = '0x1234567890123456789012345678901234567890';
+const TX_HASH = `0x${'11'.repeat(32)}`;
+
+// ---------------------------------------------------------------------------
+// AllSetProvider Tests
+// ---------------------------------------------------------------------------
+
+test('AllSetProvider exposes expected properties', () => {
+  const allset = new AllSetProvider({ network: 'testnet' });
+  assert.equal(allset.network, 'testnet');
+  assert.ok(allset.chains.includes('arbitrum'));
+  assert.ok(allset.chains.includes('ethereum'));
+  assert.ok(allset.crossSignUrl.length > 0);
 });
 
-test('unsupported route is rejected', async () => {
+test('AllSetProvider.getChainConfig returns config for supported chains', () => {
+  const allset = new AllSetProvider({ network: 'testnet' });
+  
+  const arbConfig = allset.getChainConfig('arbitrum');
+  assert.ok(arbConfig);
+  assert.equal(arbConfig.chainId, 421614);
+  assert.ok(arbConfig.bridgeContract.startsWith('0x'));
+  
+  const ethConfig = allset.getChainConfig('ethereum');
+  assert.ok(ethConfig);
+  assert.equal(ethConfig.chainId, 11155111);
+});
+
+test('AllSetProvider.getChainConfig returns null for unsupported chains', () => {
+  const allset = new AllSetProvider({ network: 'testnet' });
+  const config = allset.getChainConfig('unsupported');
+  assert.equal(config, null);
+});
+
+test('AllSetProvider.getTokenConfig returns config and normalizes fastUSDC', () => {
+  const allset = new AllSetProvider({ network: 'testnet' });
+  
+  const usdcConfig = allset.getTokenConfig('arbitrum', 'USDC');
+  assert.ok(usdcConfig);
+  assert.equal(usdcConfig.decimals, 6);
+  
+  // fastUSDC should normalize to USDC config
+  const fastUsdcConfig = allset.getTokenConfig('arbitrum', 'fastUSDC');
+  assert.ok(fastUsdcConfig);
+  assert.deepEqual(fastUsdcConfig, usdcConfig);
+});
+
+test('AllSetProvider configPath drives sendToFast execution', async (t) => {
+  const tempDir = mkdtempSync(join(tmpdir(), 'allset-sdk-config-'));
+  t.after(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  const configPath = join(tempDir, 'networks.json');
+  writeFileSync(configPath, JSON.stringify({
+    testnet: {
+      crossSignUrl: 'https://example.invalid/cross-sign',
+      chains: {
+        customchain: {
+          chainId: 31337,
+          bridgeContract: '0x1111111111111111111111111111111111111111',
+          fastBridgeAddress: FAST_ADDRESS,
+          relayerUrl: 'https://example.invalid/relay',
+          tokens: {
+            USDC: {
+              evmAddress: '0x2222222222222222222222222222222222222222',
+              fastTokenId: 'b4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5',
+              decimals: 6,
+            },
+          },
+        },
+      },
+    },
+    mainnet: {
+      crossSignUrl: 'https://example.invalid/mainnet',
+      chains: {},
+    },
+  }, null, 2));
+
+  const allset = new AllSetProvider({ network: 'testnet', configPath });
+  let sentTx: { to: string; data: string; value: string } | undefined;
+
+  const mockExecutor = {
+    sendTx: async (tx: { to: string; data: string; value: string }) => {
+      sentTx = tx;
+      return { txHash: '0xcustom', status: 'success' as const };
+    },
+    checkAllowance: async () => 1_000_000n,
+    approveErc20: async () => '0xapprove',
+  };
+
+  const result = await allset.sendToFast({
+    chain: 'customchain',
+    token: 'USDC',
+    amount: '1000000',
+    from: EVM_ADDRESS,
+    to: FAST_ADDRESS,
+    evmExecutor: mockExecutor,
+  });
+
+  assert.equal(result.txHash, '0xcustom');
+  assert.equal(sentTx?.to, '0x1111111111111111111111111111111111111111');
+  assert.equal(sentTx?.value, '0');
+});
+
+// ---------------------------------------------------------------------------
+// sendToFast Tests
+// ---------------------------------------------------------------------------
+
+test('sendToFast without evmExecutor is rejected', async () => {
+  const allset = new AllSetProvider({ network: 'testnet' });
+  
   await assert.rejects(
-    () => allsetProvider.bridge({
-      fromChain: 'ethereum',
-      toChain: 'arbitrum',
-      fromToken: 'USDC',
-      toToken: 'USDC',
-      fromDecimals: 6,
+    () => allset.sendToFast({
+      chain: 'arbitrum',
+      token: 'USDC',
       amount: '1000000',
-      senderAddress: '0xsender',
-      receiverAddress: '0xreceiver',
+      from: '0xsender',
+      to: 'fast1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq0l98cr',
+      evmExecutor: undefined as any,
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code?: string }).code, 'INVALID_PARAMS');
+      return true;
+    },
+  );
+});
+
+test('sendToFast with unsupported chain is rejected', async () => {
+  const allset = new AllSetProvider({ network: 'testnet' });
+  
+  const mockExecutor = {
+    sendTx: async () => ({ txHash: '0x123', status: 'success' as const }),
+    checkAllowance: async () => BigInt(0),
+    approveErc20: async () => '0x123',
+  };
+  
+  await assert.rejects(
+    () => allset.sendToFast({
+      chain: 'unsupported',
+      token: 'USDC',
+      amount: '1000000',
+      from: '0xsender',
+      to: 'fast1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq0l98cr',
+      evmExecutor: mockExecutor,
     }),
     (error: unknown) => {
       assert.equal((error as { code?: string }).code, 'UNSUPPORTED_OPERATION');
@@ -34,17 +171,21 @@ test('unsupported route is rejected', async () => {
   );
 });
 
-test('deposit without evmExecutor is rejected', async () => {
+// ---------------------------------------------------------------------------
+// sendToExternal Tests
+// ---------------------------------------------------------------------------
+
+test('sendToExternal without fastWallet is rejected', async () => {
+  const allset = new AllSetProvider({ network: 'testnet' });
+  
   await assert.rejects(
-    () => allsetProvider.bridge({
-      fromChain: 'arbitrum',
-      toChain: 'fast',
-      fromToken: 'USDC',
-      toToken: 'fastUSDC',
-      fromDecimals: 6,
+    () => allset.sendToExternal({
+      chain: 'arbitrum',
+      token: 'fastUSDC',
       amount: '1000000',
-      senderAddress: '0xsender',
-      receiverAddress: 'fast1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq0l98cr',
+      from: 'fast1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq0l98cr',
+      to: '0xreceiver',
+      fastWallet: undefined as any,
     }),
     (error: unknown) => {
       assert.equal((error as { code?: string }).code, 'INVALID_PARAMS');
@@ -53,17 +194,71 @@ test('deposit without evmExecutor is rejected', async () => {
   );
 });
 
-test('withdrawal without fastClient is rejected', async () => {
+// ---------------------------------------------------------------------------
+// Intent Builder Tests
+// ---------------------------------------------------------------------------
+
+test('buildTransferIntent creates correct intent', () => {
+  const intent = buildTransferIntent(
+    '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d',
+    '0x1234567890123456789012345678901234567890',
+  );
+  
+  assert.equal(intent.action, IntentAction.DynamicTransfer);
+  assert.ok(intent.payload.startsWith('0x'));
+  assert.equal(intent.value, 0n);
+});
+
+test('buildExecuteIntent creates correct intent', () => {
+  const intent = buildExecuteIntent(
+    '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d',
+    '0xabcdef',
+    100n,
+  );
+  
+  assert.equal(intent.action, IntentAction.Execute);
+  assert.ok(intent.payload.startsWith('0x'));
+  assert.equal(intent.value, 100n);
+});
+
+test('buildExecuteIntent defaults value to 0', () => {
+  const intent = buildExecuteIntent(
+    '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d',
+    '0xabcdef',
+  );
+  
+  assert.equal(intent.value, 0n);
+});
+
+test('buildDepositBackIntent creates correct intent', () => {
+  const intent = buildDepositBackIntent(
+    '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d',
+    'fast1rsxfj84yhsskpr6g5ll2td7pkk3dnlsfwldsmawca4922qn3dqvqsxelzv',
+  );
+  
+  assert.equal(intent.action, IntentAction.DynamicDeposit);
+  assert.ok(intent.payload.startsWith('0x'));
+  assert.equal(intent.value, 0n);
+});
+
+test('buildRevokeIntent creates correct intent', () => {
+  const intent = buildRevokeIntent();
+  
+  assert.equal(intent.action, IntentAction.Revoke);
+  assert.equal(intent.payload, '0x');
+  assert.equal(intent.value, 0n);
+});
+
+test('executeIntent without fastWallet is rejected', async () => {
+  const allset = new AllSetProvider({ network: 'testnet' });
+  
   await assert.rejects(
-    () => allsetProvider.bridge({
-      fromChain: 'fast',
-      toChain: 'arbitrum',
-      fromToken: 'fastUSDC',
-      toToken: 'USDC',
-      fromDecimals: 6,
+    () => allset.executeIntent({
+      chain: 'arbitrum',
+      token: 'fastUSDC',
       amount: '1000000',
-      senderAddress: 'fast1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq0l98cr',
-      receiverAddress: '0xreceiver',
+      intents: [buildTransferIntent('0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d', '0x1234567890123456789012345678901234567890')],
+      fastWallet: undefined as any,
     }),
     (error: unknown) => {
       assert.equal((error as { code?: string }).code, 'INVALID_PARAMS');
@@ -71,6 +266,87 @@ test('withdrawal without fastClient is rejected', async () => {
     },
   );
 });
+
+test('executeIntent infers external_address from execute target', async (t) => {
+  const allset = new AllSetProvider({ network: 'testnet' });
+  const originalFetch = globalThis.fetch;
+  let relayerBody: Record<string, unknown> | undefined;
+  const contractAddress = '0x1111111111111111111111111111111111111111';
+
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes('/relayer/relay')) {
+      relayerBody = JSON.parse(String(init?.body));
+      return Response.json({ ok: true });
+    }
+
+    return Response.json({
+      result: {
+        transaction: [1, 2, 3],
+        signature: '0xsig',
+      },
+    });
+  };
+
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  await allset.executeIntent({
+    chain: 'arbitrum',
+    fastWallet: {
+      address: FAST_ADDRESS,
+      async submit() {
+        return { txHash: TX_HASH, certificate: { ok: true } };
+      },
+    } as any,
+    token: 'fastUSDC',
+    amount: '1000000',
+    intents: [buildExecuteIntent(contractAddress, '0xabcdef')],
+  });
+
+  assert.equal(relayerBody?.external_address, contractAddress);
+});
+
+test('executeIntent rejects intents without an EVM target unless externalAddress is provided', async (t) => {
+  const allset = new AllSetProvider({ network: 'testnet' });
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async () => {
+    return Response.json({
+      result: {
+        transaction: [1, 2, 3],
+        signature: '0xsig',
+      },
+    });
+  };
+
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  await assert.rejects(
+    () => allset.executeIntent({
+      chain: 'arbitrum',
+      fastWallet: {
+        address: FAST_ADDRESS,
+        async submit() {
+          return { txHash: TX_HASH, certificate: { ok: true } };
+        },
+      } as any,
+      token: 'fastUSDC',
+      amount: '1000000',
+      intents: [buildRevokeIntent()],
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code?: string }).code, 'INVALID_PARAMS');
+      return true;
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// EVM Executor Tests
+// ---------------------------------------------------------------------------
 
 test('createEvmExecutor rejects unsupported chain ids', () => {
   assert.throws(
@@ -78,6 +354,10 @@ test('createEvmExecutor rejects unsupported chain ids', () => {
     /Unsupported EVM chain ID/,
   );
 });
+
+// ---------------------------------------------------------------------------
+// EVM Wallet Tests
+// ---------------------------------------------------------------------------
 
 test('createEvmWallet generates valid wallet', () => {
   const wallet = createEvmWallet();
@@ -96,115 +376,114 @@ test('createEvmWallet generates valid wallet', () => {
   assert.notEqual(wallet.address, wallet2.address, 'should generate unique addresses');
 });
 
-test('createFastWallet generates a usable Fast wallet', () => {
-  const wallet = createFastWallet();
-
-  assert.match(wallet.privateKey, /^[0-9a-f]{64}$/i);
-  assert.match(wallet.publicKey, /^[0-9a-f]{64}$/i);
-  assert.ok(wallet.address.startsWith('fast1'), 'address should be a Fast bech32m address');
-
-  const fastClient = createFastClient({
-    privateKey: wallet.privateKey,
-    publicKey: wallet.publicKey,
-  });
-  assert.equal(fastClient.address, wallet.address, 'client address should match generated address');
-
-  const wallet2 = createFastWallet();
-  assert.notEqual(wallet.privateKey, wallet2.privateKey, 'should generate unique private keys');
-  assert.notEqual(wallet.publicKey, wallet2.publicKey, 'should generate unique public keys');
-  assert.notEqual(wallet.address, wallet2.address, 'should generate unique addresses');
+test('createEvmWallet derives address from provided privateKey', () => {
+  // Generate a wallet first
+  const original = createEvmWallet();
+  
+  // Derive from the same private key
+  const derived = createEvmWallet(original.privateKey);
+  
+  // Should produce the same address
+  assert.equal(derived.privateKey, original.privateKey, 'privateKey should match');
+  assert.equal(derived.address, original.address, 'address should match');
+  
+  // Also works without 0x prefix
+  const derivedWithoutPrefix = createEvmWallet(original.privateKey.slice(2));
+  assert.equal(derivedWithoutPrefix.address, original.address, 'address should match without 0x prefix');
 });
 
-test('createFastClient rejects mismatched Fast keypairs', () => {
-  const wallet = createFastWallet();
-  const otherWallet = createFastWallet();
+// ---------------------------------------------------------------------------
+// evmSign Tests
+// ---------------------------------------------------------------------------
 
-  assert.throws(
-    () => createFastClient({
-      privateKey: wallet.privateKey,
-      publicKey: otherWallet.publicKey,
-    }),
-    /publicKey does not match/,
-  );
-});
-
-test('createFastClient preserves exact timestamp_nanos in submit and evmSign payloads', async (t) => {
+test('evmSign rejects invalid certificates', async (t) => {
   const originalFetch = globalThis.fetch;
-  const originalDateNow = Date.now;
 
-  let submitBody = '';
-  let crossSignBody = '';
-
-  const expectedTimestamp = 1_730_000_000_123_000_000n;
-  const tokenIdBytes = new Array(32).fill(0x07);
-  const wallet = createFastWallet();
-  const senderBytes = Array.from(Buffer.from(wallet.publicKey, 'hex'));
-
-  Date.now = () => 1_730_000_000_123;
-
-  globalThis.fetch = async (_input, init) => {
-    const body = String(init?.body ?? '');
-
-    if (body.includes('"method":"proxy_getAccountInfo"')) {
-      return new Response('{"result":{"next_nonce":7}}', {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (body.includes('"method":"proxy_submitTransaction"')) {
-      submitBody = body;
-      return new Response(
-        `{"result":{"Success":{"envelope":{"transaction":{"sender":[${senderBytes.join(',')}],"recipient":[${senderBytes.join(',')}],"nonce":7,"timestamp_nanos":${expectedTimestamp.toString()},"claim":{"TokenTransfer":{"token_id":[${tokenIdBytes.join(',')}],"amount":"f4240","user_data":null}},"archival":false}}}}}`,
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        },
-      );
-    }
-
-    if (body.includes('"method":"crossSign_evmSignCertificate"')) {
-      crossSignBody = body;
-      return Response.json({
-        result: {
-          transaction: [1, 2, 3],
-          signature: '0xabc',
-        },
-      });
-    }
-
-    throw new Error(`Unexpected fetch body: ${body}`);
+  globalThis.fetch = async () => {
+    return Response.json({
+      error: { message: 'Invalid certificate format' },
+    });
   };
 
   t.after(() => {
     globalThis.fetch = originalFetch;
-    Date.now = originalDateNow;
   });
 
-  const client = createFastClient({
-    privateKey: wallet.privateKey,
-    publicKey: wallet.publicKey,
-  });
-
-  const submitResult = await client.submit({
-    recipient: client.address!,
-    claim: {
-      TokenTransfer: {
-        token_id: Uint8Array.from(tokenIdBytes),
-        amount: '1000000',
-        user_data: null,
-      },
+  await assert.rejects(
+    () => evmSign({ envelope: { transaction: {} } }),
+    (error: unknown) => {
+      assert.equal((error as { code?: string }).code, 'TX_FAILED');
+      assert.match((error as Error).message, /Cross-sign error/);
+      return true;
     },
+  );
+});
+
+test('evmSign returns transaction and signature on success', async (t) => {
+  const originalFetch = globalThis.fetch;
+
+  const mockResult = {
+    transaction: [1, 2, 3, 4],
+    signature: '0xabcdef',
+  };
+
+  globalThis.fetch = async () => {
+    return Response.json({
+      result: mockResult,
+    });
+  };
+
+  t.after(() => {
+    globalThis.fetch = originalFetch;
   });
 
-  await client.evmSign({ certificate: submitResult.certificate });
+  const result = await evmSign({ envelope: { transaction: {} } });
+  
+  assert.deepEqual(result.transaction, mockResult.transaction);
+  assert.equal(result.signature, mockResult.signature);
+});
 
-  assert.match(submitBody, new RegExp(`"timestamp_nanos":${expectedTimestamp.toString()}`));
-  assert.doesNotMatch(submitBody, /"timestamp_nanos":"\d+"/);
-  assert.match(crossSignBody, new RegExp(`"timestamp_nanos":${expectedTimestamp.toString()}`));
+test('executeBridge withdrawal uses the default cross-sign URL without a provider', async (t) => {
+  const originalFetch = globalThis.fetch;
+  const urls: string[] = [];
 
-  const certificate = submitResult.certificate as {
-    envelope: { transaction: { timestamp_nanos: bigint } };
+  globalThis.fetch = async (url) => {
+    urls.push(String(url));
+
+    if (String(url).includes('/relayer/relay')) {
+      return Response.json({ ok: true });
+    }
+
+    return Response.json({
+      result: {
+        transaction: [1, 2, 3],
+        signature: '0xsig',
+      },
+    });
   };
-  assert.equal(certificate.envelope.transaction.timestamp_nanos, expectedTimestamp);
+
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  await executeBridge({
+    fromChain: 'fast',
+    toChain: 'arbitrum',
+    fromToken: 'fastUSDC',
+    toToken: 'USDC',
+    fromDecimals: 6,
+    amount: '1000000',
+    senderAddress: FAST_ADDRESS,
+    receiverAddress: EVM_ADDRESS,
+    fastWallet: {
+      address: FAST_ADDRESS,
+      async submit() {
+        return { txHash: TX_HASH, certificate: { ok: true } };
+      },
+    } as any,
+  });
+
+  assert.equal(urls[0], 'https://staging.cross-sign.allset.fastset.xyz');
+  assert.equal(urls[1], 'https://staging.cross-sign.allset.fastset.xyz');
+  assert.equal(urls[2], 'https://staging.allset.fastset.xyz/arbitrum-sepolia/relayer/relay');
 });

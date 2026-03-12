@@ -1,111 +1,78 @@
 # AllSet SDK
 
-Official TypeScript SDK for the AllSet bridge. Bridge tokens between Fast network and supported EVM routes, with the current branch focused on Arbitrum Sepolia and Fast testnet flows.
+Bridge tokens between Fast network and EVM chains.
 
-## Install
+## Installation
 
 ```bash
-npm install @fastxyz/allset-sdk
+npm install @fastxyz/sdk @fastxyz/allset-sdk
 ```
 
 ## Quick Start
 
-### Deposit (EVM → Fast)
-
 ```ts
-import { createEvmExecutor, allsetProvider } from '@fastxyz/allset-sdk';
+import { FastProvider, FastWallet } from '@fastxyz/sdk';
+import { AllSetProvider, createEvmExecutor, createEvmWallet } from '@fastxyz/allset-sdk';
 
-const evmExecutor = createEvmExecutor(
-  process.env.EVM_PRIVATE_KEY!,
-  'https://sepolia-rollup.arbitrum.io/rpc',
-  421614
-);
+// Setup
+const fastProvider = new FastProvider({ network: 'testnet' });
+const allset = new AllSetProvider({ network: 'testnet' });
+const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);
+const evmWallet = createEvmWallet('~/.allset/.evm/keys/default.json');
 
-const result = await allsetProvider.bridge({
-  fromChain: 'arbitrum',
-  toChain: 'fast',
-  fromToken: 'USDC',
-  toToken: 'fastUSDC',
-  fromDecimals: 6,
-  amount: '1000000', // 1 USDC (6 decimals)
-  senderAddress: '0xYourEvmAddress',
-  receiverAddress: 'fast1yourfastaddress',
+// Deposit: EVM → Fast
+const evmExecutor = createEvmExecutor(evmWallet.privateKey, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
+await allset.sendToFast({
+  chain: 'arbitrum',
+  token: 'USDC',
+  amount: '1000000',
+  from: evmWallet.address,
+  to: fastWallet.address,
   evmExecutor,
 });
 
-console.log(result.txHash);
+// Withdraw: Fast → EVM
+await allset.sendToExternal({
+  chain: 'arbitrum',
+  token: 'fastUSDC',
+  amount: '1000000',
+  from: fastWallet.address,
+  to: evmWallet.address,
+  fastWallet,
+});
 ```
 
-### Withdraw (Fast → EVM)
+## Advanced: Custom Intents
 
 ```ts
-import { createFastWallet } from '@fastxyz/allset-sdk';
+import { buildTransferIntent, buildExecuteIntent } from '@fastxyz/allset-sdk';
 
-const wallet = createFastWallet();
-console.log(wallet.address);
-// Persist wallet.privateKey and wallet.publicKey securely.
+// Execute custom intents on EVM chain
+await allset.executeIntent({
+  chain: 'arbitrum',
+  fastWallet,
+  token: 'fastUSDC',
+  amount: '1000000',
+  intents: [
+    buildTransferIntent(USDC_ADDRESS, '0xRecipient'),
+    // Add more intents: swaps, protocol calls, etc.
+  ],
+});
 ```
 
-Store that keypair securely, then use it with `createFastClient()`:
-
-```ts
-import { createFastClient, allsetProvider } from '@fastxyz/allset-sdk';
-
-const fastClient = createFastClient({
-  privateKey: process.env.FAST_PRIVATE_KEY!, // 32-byte hex
-  publicKey: process.env.FAST_PUBLIC_KEY!,   // 32-byte hex
-});
-
-const result = await allsetProvider.bridge({
-  fromChain: 'fast',
-  toChain: 'arbitrum',
-  fromToken: 'fastUSDC',
-  toToken: 'USDC',
-  fromDecimals: 6,
-  amount: '1000000', // 1 USDC (6 decimals)
-  senderAddress: fastClient.address!,
-  receiverAddress: '0xYourEvmAddress',
-  fastClient,
-});
-
-console.log(result.txHash);
-// { txHash: '0x...', orderId: '0x...', estimatedTime: '1-5 minutes' }
-```
-
-Best practice: generate the Fast wallet once, store the private/public keys in your secret manager or environment, and pass those stored values into `createFastClient()`. Do not generate a fresh wallet on every app start unless that is explicitly what you want.
-
-## Features
-
-- **Deposit** - Bridge USDC from EVM chains to fastUSDC on Fast
-- **Withdraw** - Bridge fastUSDC from Fast to USDC on EVM chains
-- **EVM Executor** - Built-in viem-based transaction executor
-- **Fast Client** - Built-in Fast network client for withdrawals
-- **Fast Wallet Generator** - Generate a Fast keypair and address without another SDK
+For intents without a transfer recipient or execute target, pass `externalAddress` so the relayer has an explicit EVM target.
 
 ## Supported Networks
 
-Current SDK implementation in this branch:
-
-- Testnet-only bridge flows
-- Arbitrum Sepolia (`421614`) + Fast testnet
-- Token mapping for `USDC` <-> `fastUSDC`
-
-Environment target matrix for AllSet deployments:
-
-- Mainnet: Polygon, Arbitrum, Base with `USDC` -> `fastUSDC`
-- Testnet: Sepolia, Arbitrum Sepolia, Tempo with testnet `USDC` -> `testUSDC`
+| Network | Chain | Status |
+|---------|-------|--------|
+| Testnet | Arbitrum Sepolia | ✅ |
+| Testnet | Ethereum Sepolia | ✅ |
+| Mainnet | Coming soon | 🔜 |
 
 ## Documentation
 
-See [SKILL.md](./SKILL.md) for detailed API documentation and troubleshooting.
-
-## Development
-
-```bash
-npm install
-npm run build
-npm test
-```
+See [SKILL.md](./SKILL.md) for detailed API documentation.
 
 ## License
 

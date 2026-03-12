@@ -1,6 +1,6 @@
 {
   "name": "@fastxyz/allset-sdk",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "AllSet SDK for AllSet bridge flows between Fast and EVM testnets",
   "keywords": [
     "allset",
@@ -19,7 +19,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "data"
   ],
   "scripts": {
     "build": "tsc",
@@ -53,7 +54,11 @@
     "bech32": "^2.0.0",
     "viem": "^2.46.2"
   },
+  "peerDependencies": {
+    "@fastxyz/sdk": ">=0.1.2"
+  },
   "devDependencies": {
+    "@fastxyz/sdk": "^0.1.2",
     "@types/node": "^22.19.11",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
