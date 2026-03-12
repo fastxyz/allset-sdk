@@ -37,6 +37,65 @@ npm install @fastxyz/sdk @fastxyz/allset-sdk
 - `createEvmWallet(keyOrPath?)` — Generate/load EVM wallet
 - `saveEvmWallet(wallet, path)` — Save wallet to file
 
+## Workflow
+
+### 1. Confirm the requested flow
+
+Classify the task first:
+
+- **Deposit**: EVM to Fast → use `sendToFast()`
+- **Withdrawal**: Fast to EVM → use `sendToExternal()`
+- **Advanced**: Custom intents (swap, protocol calls) → use `executeIntent()`
+- **SDK integration**: importing package, wiring executors/wallets
+- **Debugging**: interpreting thrown `FastError`
+
+Do not start coding until you confirm the requested chain, token, and direction are actually supported.
+
+### 2. Setting up AllSetProvider
+
+```ts
+import { AllSetProvider } from '@fastxyz/allset-sdk';
+
+// Default testnet
+const allset = new AllSetProvider();
+
+// Mainnet (when available)
+const allset = new AllSetProvider({ network: 'mainnet' });
+
+// Custom config file
+const allset = new AllSetProvider({ configPath: './my-networks.json' });
+```
+
+**Configuration loading order:**
+
+1. Custom path (if `configPath` provided)
+2. `~/.allset/networks.json` (user override)
+3. Bundled `data/networks.json` (package default)
+
+### 3. Use the correct execution path
+
+- **Deposit** requires `evmExecutor` from `createEvmExecutor()`
+- **Withdrawal** requires `fastWallet` from `@fastxyz/sdk`
+- **Advanced intents** require `fastWallet` + array of `Intent` objects
+
+### 4. Respect implementation details
+
+- Network/chain/token config is in `data/networks.json`
+- Token resolution handles `fastUSDC` → `USDC` normalization
+- The package throws `FastError` from `@fastxyz/sdk`
+
+Do not invent additional token aliases, chain IDs, or mainnet support unless added to config.
+
+### 5. Validate after edits
+
+If you change code in this repo:
+
+1. Update the implementation in `src/`
+2. Keep `README.md` and this `SKILL.md` aligned
+3. Run `npm run build`
+4. Run `npm test`
+5. Report any remaining gaps
+
 ## Directory Structure
 
 ```
