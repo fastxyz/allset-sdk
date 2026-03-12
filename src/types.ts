@@ -92,6 +92,11 @@ export interface ExecuteIntentParams {
   amount: string;
   /** Array of intents to execute on EVM chain */
   intents: import('./intents.js').Intent[];
+  /**
+   * Optional EVM address for the relayer target.
+   * Required when intents do not include a transfer recipient or execute target.
+   */
+  externalAddress?: string;
   /** Deadline in seconds from now (default: 3600 = 1 hour) */
   deadlineSeconds?: number;
 }

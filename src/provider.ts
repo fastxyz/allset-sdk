@@ -277,10 +277,11 @@ export class AllSetProvider {
    *   token: 'fastUSDC',
    *   amount: '1000000',
    *   intents: [buildExecuteIntent(CONTRACT, calldata)],
+   *   externalAddress: CONTRACT,
    * });
    * ```
    */
-  async executeIntent(params: Omit<ExecuteIntentParams, 'fastWallet'> & { fastWallet: ExecuteIntentParams['fastWallet'] }): Promise<BridgeResult> {
+  async executeIntent(params: ExecuteIntentParams): Promise<BridgeResult> {
     const { executeIntent: execIntent } = await import('./bridge.js');
     return execIntent(params, this);
   }

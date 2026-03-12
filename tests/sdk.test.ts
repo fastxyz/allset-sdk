@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 
 import {
   createEvmExecutor,
   createEvmWallet,
   AllSetProvider,
+  executeBridge,
   evmSign,
   IntentAction,
   buildTransferIntent,
@@ -12,6 +16,10 @@ import {
   buildDepositBackIntent,
   buildRevokeIntent,
 } from '../src/index.ts';
+
+const FAST_ADDRESS = 'fast1rsxfj84yhsskpr6g5ll2td7pkk3dnlsfwldsmawca4922qn3dqvqsxelzv';
+const EVM_ADDRESS = '0x1234567890123456789012345678901234567890';
+const TX_HASH = `0x${'11'.repeat(32)}`;
 
 // ---------------------------------------------------------------------------
 // AllSetProvider Tests
@@ -55,6 +63,64 @@ test('AllSetProvider.getTokenConfig returns config and normalizes fastUSDC', () 
   const fastUsdcConfig = allset.getTokenConfig('arbitrum', 'fastUSDC');
   assert.ok(fastUsdcConfig);
   assert.deepEqual(fastUsdcConfig, usdcConfig);
+});
+
+test('AllSetProvider configPath drives sendToFast execution', async (t) => {
+  const tempDir = mkdtempSync(join(tmpdir(), 'allset-sdk-config-'));
+  t.after(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  const configPath = join(tempDir, 'networks.json');
+  writeFileSync(configPath, JSON.stringify({
+    testnet: {
+      crossSignUrl: 'https://example.invalid/cross-sign',
+      chains: {
+        customchain: {
+          chainId: 31337,
+          bridgeContract: '0x1111111111111111111111111111111111111111',
+          fastBridgeAddress: FAST_ADDRESS,
+          relayerUrl: 'https://example.invalid/relay',
+          tokens: {
+            USDC: {
+              evmAddress: '0x2222222222222222222222222222222222222222',
+              fastTokenId: 'b4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5',
+              decimals: 6,
+            },
+          },
+        },
+      },
+    },
+    mainnet: {
+      crossSignUrl: 'https://example.invalid/mainnet',
+      chains: {},
+    },
+  }, null, 2));
+
+  const allset = new AllSetProvider({ network: 'testnet', configPath });
+  let sentTx: { to: string; data: string; value: string } | undefined;
+
+  const mockExecutor = {
+    sendTx: async (tx: { to: string; data: string; value: string }) => {
+      sentTx = tx;
+      return { txHash: '0xcustom', status: 'success' as const };
+    },
+    checkAllowance: async () => 1_000_000n,
+    approveErc20: async () => '0xapprove',
+  };
+
+  const result = await allset.sendToFast({
+    chain: 'customchain',
+    token: 'USDC',
+    amount: '1000000',
+    from: EVM_ADDRESS,
+    to: FAST_ADDRESS,
+    evmExecutor: mockExecutor,
+  });
+
+  assert.equal(result.txHash, '0xcustom');
+  assert.equal(sentTx?.to, '0x1111111111111111111111111111111111111111');
+  assert.equal(sentTx?.value, '0');
 });
 
 // ---------------------------------------------------------------------------
@@ -201,6 +267,83 @@ test('executeIntent without fastWallet is rejected', async () => {
   );
 });
 
+test('executeIntent infers external_address from execute target', async (t) => {
+  const allset = new AllSetProvider({ network: 'testnet' });
+  const originalFetch = globalThis.fetch;
+  let relayerBody: Record<string, unknown> | undefined;
+  const contractAddress = '0x1111111111111111111111111111111111111111';
+
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes('/relayer/relay')) {
+      relayerBody = JSON.parse(String(init?.body));
+      return Response.json({ ok: true });
+    }
+
+    return Response.json({
+      result: {
+        transaction: [1, 2, 3],
+        signature: '0xsig',
+      },
+    });
+  };
+
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  await allset.executeIntent({
+    chain: 'arbitrum',
+    fastWallet: {
+      address: FAST_ADDRESS,
+      async submit() {
+        return { txHash: TX_HASH, certificate: { ok: true } };
+      },
+    } as any,
+    token: 'fastUSDC',
+    amount: '1000000',
+    intents: [buildExecuteIntent(contractAddress, '0xabcdef')],
+  });
+
+  assert.equal(relayerBody?.external_address, contractAddress);
+});
+
+test('executeIntent rejects intents without an EVM target unless externalAddress is provided', async (t) => {
+  const allset = new AllSetProvider({ network: 'testnet' });
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async () => {
+    return Response.json({
+      result: {
+        transaction: [1, 2, 3],
+        signature: '0xsig',
+      },
+    });
+  };
+
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  await assert.rejects(
+    () => allset.executeIntent({
+      chain: 'arbitrum',
+      fastWallet: {
+        address: FAST_ADDRESS,
+        async submit() {
+          return { txHash: TX_HASH, certificate: { ok: true } };
+        },
+      } as any,
+      token: 'fastUSDC',
+      amount: '1000000',
+      intents: [buildRevokeIntent()],
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code?: string }).code, 'INVALID_PARAMS');
+      return true;
+    },
+  );
+});
+
 // ---------------------------------------------------------------------------
 // EVM Executor Tests
 // ---------------------------------------------------------------------------
@@ -298,4 +441,49 @@ test('evmSign returns transaction and signature on success', async (t) => {
   
   assert.deepEqual(result.transaction, mockResult.transaction);
   assert.equal(result.signature, mockResult.signature);
+});
+
+test('executeBridge withdrawal uses the default cross-sign URL without a provider', async (t) => {
+  const originalFetch = globalThis.fetch;
+  const urls: string[] = [];
+
+  globalThis.fetch = async (url) => {
+    urls.push(String(url));
+
+    if (String(url).includes('/relayer/relay')) {
+      return Response.json({ ok: true });
+    }
+
+    return Response.json({
+      result: {
+        transaction: [1, 2, 3],
+        signature: '0xsig',
+      },
+    });
+  };
+
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  await executeBridge({
+    fromChain: 'fast',
+    toChain: 'arbitrum',
+    fromToken: 'fastUSDC',
+    toToken: 'USDC',
+    fromDecimals: 6,
+    amount: '1000000',
+    senderAddress: FAST_ADDRESS,
+    receiverAddress: EVM_ADDRESS,
+    fastWallet: {
+      address: FAST_ADDRESS,
+      async submit() {
+        return { txHash: TX_HASH, certificate: { ok: true } };
+      },
+    } as any,
+  });
+
+  assert.equal(urls[0], 'https://staging.cross-sign.allset.fastset.xyz');
+  assert.equal(urls[1], 'https://staging.cross-sign.allset.fastset.xyz');
+  assert.equal(urls[2], 'https://staging.allset.fastset.xyz/arbitrum-sepolia/relayer/relay');
 });

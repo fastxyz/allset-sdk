@@ -221,6 +221,7 @@ await allset.executeIntent({
   token: 'fastUSDC',
   amount: '1000000',
   intents: [buildExecuteIntent(CONTRACT_ADDRESS, encodedCalldata)],
+  externalAddress: CONTRACT_ADDRESS,
   deadlineSeconds: 7200,  // Optional: 2 hours (default: 1 hour)
 });
 ```
@@ -234,6 +235,7 @@ await allset.executeIntent({
 | `token` | `string` | Yes | Token to transfer to bridge |
 | `amount` | `string` | Yes | Amount in smallest units |
 | `intents` | `Intent[]` | Yes | Array of intents to execute |
+| `externalAddress` | `string` | No* | Required when intents do not include a transfer recipient or execute target |
 | `deadlineSeconds` | `number` | No | Deadline (default: 3600) |
 
 ## Intent Builders

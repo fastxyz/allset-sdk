@@ -60,6 +60,8 @@ await allset.executeIntent({
 });
 ```
 
+For intents without a transfer recipient or execute target, pass `externalAddress` so the relayer has an explicit EVM target.
+
 ## Supported Networks
 
 | Network | Chain | Status |

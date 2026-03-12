@@ -9,11 +9,11 @@
  */
 
 import { bech32m } from 'bech32';
-import { encodeAbiParameters, encodeFunctionData } from 'viem';
-import { FastError, type FastWallet } from '@fastxyz/sdk';
+import { decodeAbiParameters, encodeAbiParameters, encodeFunctionData } from 'viem';
+import { FastError } from '@fastxyz/sdk';
 import type { BridgeParams, BridgeResult, AllSetChainConfig, AllSetTokenInfo, ExecuteIntentParams } from './types.js';
 import { getNetworkConfig, getChainConfig, getTokenConfig, type ChainConfig, type TokenConfig } from './config.js';
-import { type Intent, buildTransferIntent } from './intents.js';
+import { IntentAction, type Intent, buildTransferIntent } from './intents.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -54,24 +54,61 @@ function toAllSetTokenInfo(config: TokenConfig): AllSetTokenInfo {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function resolveAllSetToken(token: string, evmChain: string, network: 'testnet' | 'mainnet' = DEFAULT_NETWORK): AllSetTokenInfo | null {
+interface BridgeProviderConfig {
+  network: 'testnet' | 'mainnet';
+  crossSignUrl?: string;
+  getChainConfig(chain: string): ChainConfig | null;
+  getTokenConfig(chain: string, token: string): TokenConfig | null;
+  getNetworkConfig?(): { chains: Record<string, ChainConfig> };
+}
+
+function resolveChainConfig(
+  chain: string,
+  network: 'testnet' | 'mainnet' = DEFAULT_NETWORK,
+  provider?: BridgeProviderConfig,
+): ChainConfig | null {
+  return provider?.getChainConfig(chain) ?? getChainConfig(chain, network);
+}
+
+function resolveTokenConfig(
+  chain: string,
+  token: string,
+  network: 'testnet' | 'mainnet' = DEFAULT_NETWORK,
+  provider?: BridgeProviderConfig,
+): TokenConfig | null {
+  return provider?.getTokenConfig(chain, token) ?? getTokenConfig(chain, token, network);
+}
+
+function getSupportedChains(
+  network: 'testnet' | 'mainnet' = DEFAULT_NETWORK,
+  provider?: BridgeProviderConfig,
+): string[] {
+  return Object.keys(provider?.getNetworkConfig?.().chains ?? getNetworkConfig(network).chains);
+}
+
+function resolveAllSetToken(
+  token: string,
+  evmChain: string,
+  network: 'testnet' | 'mainnet' = DEFAULT_NETWORK,
+  provider?: BridgeProviderConfig,
+): AllSetTokenInfo | null {
   // Normalize token name - fastUSDC on Fast maps to USDC on EVM
   const normalizedToken = token.toLowerCase() === 'fastusdc' ? 'USDC' : token;
 
   // Try exact match first
-  const tokenConfig = getTokenConfig(evmChain, normalizedToken, network);
+  const tokenConfig = resolveTokenConfig(evmChain, normalizedToken, network, provider);
   if (tokenConfig) {
     return toAllSetTokenInfo(tokenConfig);
   }
 
   // Try uppercase
-  const upperConfig = getTokenConfig(evmChain, normalizedToken.toUpperCase(), network);
+  const upperConfig = resolveTokenConfig(evmChain, normalizedToken.toUpperCase(), network, provider);
   if (upperConfig) {
     return toAllSetTokenInfo(upperConfig);
   }
 
   // Try matching by EVM address
-  const chainConfig = getChainConfig(evmChain, network);
+  const chainConfig = resolveChainConfig(evmChain, network, provider);
   if (chainConfig) {
     for (const [, info] of Object.entries(chainConfig.tokens)) {
       if (info.evmAddress.toLowerCase() === token.toLowerCase()) {
@@ -109,6 +146,43 @@ const BRIDGE_DEPOSIT_ABI = [{
   outputs: [],
   stateMutability: 'payable' as const,
 }];
+
+function resolveExternalAddress(
+  intents: Intent[],
+  externalAddressOverride?: string,
+): `0x${string}` | null {
+  if (externalAddressOverride) {
+    return externalAddressOverride as `0x${string}`;
+  }
+
+  for (const intent of intents) {
+    if (intent.action === IntentAction.DynamicTransfer) {
+      try {
+        const [, receiver] = decodeAbiParameters(
+          [{ type: 'address' }, { type: 'address' }],
+          intent.payload,
+        );
+        return receiver;
+      } catch {
+        continue;
+      }
+    }
+
+    if (intent.action === IntentAction.Execute) {
+      try {
+        const [target] = decodeAbiParameters(
+          [{ type: 'address' }, { type: 'bytes' }],
+          intent.payload,
+        );
+        return target;
+      } catch {
+        continue;
+      }
+    }
+  }
+
+  return null;
+}
 
 // ─── evmSign (AllSet cross-signing) ───────────────────────────────────────────
 
@@ -185,17 +259,6 @@ export async function evmSign(
 // ─── Bridge Execution ─────────────────────────────────────────────────────────
 
 /**
- * Provider interface for bridge configuration.
- * Matches AllSetProvider from provider.ts (defined here to avoid circular import).
- */
-interface BridgeProviderConfig {
-  network: 'testnet' | 'mainnet';
-  crossSignUrl: string;
-  getChainConfig(chain: string): { chainId: number; bridgeContract: string; fastBridgeAddress: string; relayerUrl: string; tokens: Record<string, { evmAddress: string; fastTokenId: string; decimals: number }> } | null;
-  getTokenConfig(chain: string, token: string): { evmAddress: string; fastTokenId: string; decimals: number } | null;
-}
-
-/**
  * Execute a bridge operation with optional provider configuration.
  * Called by AllSetProvider.bridge() or directly for low-level usage.
  */
@@ -217,10 +280,10 @@ export async function executeBridge(params: BridgeParams, provider?: BridgeProvi
     }
 
     if (isDeposit) {
-      return await handleDeposit(params, network, provider?.crossSignUrl);
+      return await handleDeposit(params, network, provider);
     }
 
-    return await handleWithdraw(params, network, provider?.crossSignUrl);
+    return await handleWithdraw(params, network, provider);
   } catch (err: unknown) {
     if (err instanceof FastError) throw err;
     const msg = err instanceof Error ? err.message : String(err);
@@ -236,7 +299,11 @@ export async function executeBridge(params: BridgeParams, provider?: BridgeProvi
 
 // ─── Deposit (EVM → Fast) ─────────────────────────────────────────────────────
 
-async function handleDeposit(params: BridgeParams, network: 'testnet' | 'mainnet' = DEFAULT_NETWORK, crossSignUrl?: string): Promise<BridgeResult> {
+async function handleDeposit(
+  params: BridgeParams,
+  network: 'testnet' | 'mainnet' = DEFAULT_NETWORK,
+  provider?: BridgeProviderConfig,
+): Promise<BridgeResult> {
   if (!params.evmExecutor) {
     throw new FastError(
       'INVALID_PARAMS',
@@ -247,12 +314,11 @@ async function handleDeposit(params: BridgeParams, network: 'testnet' | 'mainnet
     );
   }
 
-  const chainConfigRaw = getChainConfig(params.fromChain, network);
+  const chainConfigRaw = resolveChainConfig(params.fromChain, network, provider);
   if (!chainConfigRaw) {
-    const networkConfig = getNetworkConfig(network);
     throw new FastError(
       'UNSUPPORTED_OPERATION',
-      `AllSet does not support EVM chain "${params.fromChain}". Supported: ${Object.keys(networkConfig.chains).join(', ')}`,
+      `AllSet does not support EVM chain "${params.fromChain}". Supported: ${getSupportedChains(network, provider).join(', ')}`,
       {
         note: 'Use "ethereum" or "arbitrum" as the source chain for AllSet deposits.',
       },
@@ -260,9 +326,9 @@ async function handleDeposit(params: BridgeParams, network: 'testnet' | 'mainnet
   }
   const chainConfig = toAllSetChainConfig(chainConfigRaw);
 
-  let tokenInfo = resolveAllSetToken(params.fromToken, params.fromChain, network);
+  let tokenInfo = resolveAllSetToken(params.fromToken, params.fromChain, network, provider);
   if (!tokenInfo) {
-    tokenInfo = resolveAllSetToken(params.toToken, params.fromChain, network);
+    tokenInfo = resolveAllSetToken(params.toToken, params.fromChain, network, provider);
   }
   if (!tokenInfo) {
     throw new FastError(
@@ -364,11 +430,19 @@ async function handleDeposit(params: BridgeParams, network: 'testnet' | 'mainnet
  */
 export async function executeIntent(
   params: ExecuteIntentParams,
-  provider?: { network: 'testnet' | 'mainnet'; crossSignUrl: string },
+  provider?: BridgeProviderConfig,
 ): Promise<BridgeResult> {
   const network = provider?.network ?? DEFAULT_NETWORK;
   const crossSignUrl = provider?.crossSignUrl;
-  const { fastWallet, chain, token, amount, intents, deadlineSeconds = 3600 } = params;
+  const {
+    fastWallet,
+    chain,
+    token,
+    amount,
+    intents,
+    externalAddress: externalAddressOverride,
+    deadlineSeconds = 3600,
+  } = params;
 
   if (!fastWallet) {
     throw new FastError(
@@ -390,12 +464,21 @@ export async function executeIntent(
     );
   }
 
-  const chainConfigRaw = getChainConfig(chain, network);
+  if (externalAddressOverride && !externalAddressOverride.startsWith('0x')) {
+    throw new FastError(
+      'INVALID_PARAMS',
+      'executeIntent externalAddress must be an EVM address',
+      {
+        note: 'Pass a 0x-prefixed address for the relayer target.',
+      },
+    );
+  }
+
+  const chainConfigRaw = resolveChainConfig(chain, network, provider);
   if (!chainConfigRaw) {
-    const networkConfig = getNetworkConfig(network);
     throw new FastError(
       'UNSUPPORTED_OPERATION',
-      `AllSet does not support EVM chain "${chain}". Supported: ${Object.keys(networkConfig.chains).join(', ')}`,
+      `AllSet does not support EVM chain "${chain}". Supported: ${getSupportedChains(network, provider).join(', ')}`,
       {
         note: 'Use "ethereum" or "arbitrum" as the chain.',
       },
@@ -403,7 +486,7 @@ export async function executeIntent(
   }
   const chainConfig = toAllSetChainConfig(chainConfigRaw);
 
-  const tokenInfo = resolveAllSetToken(token, chain, network);
+  const tokenInfo = resolveAllSetToken(token, chain, network, provider);
   if (!tokenInfo) {
     throw new FastError(
       'TOKEN_NOT_FOUND',
@@ -482,19 +565,15 @@ export async function executeIntent(
   const intentCrossSign = await evmSign(intentResult.certificate, crossSignUrl);
 
   // Step 6: Submit to relayer
-  // Note: external_address is set from the first transfer intent if available
-  const firstTransferIntent = intents.find(i => i.action === 1);
-  let externalAddress = fastWallet.address; // fallback
-  if (firstTransferIntent) {
-    // Decode the receiver from DynamicTransfer payload
-    try {
-      const payloadHex = firstTransferIntent.payload.slice(2);
-      // DynamicTransfer payload is (address token, address receiver)
-      // Each address is 32 bytes (padded), so receiver starts at byte 32
-      externalAddress = '0x' + payloadHex.slice(64 + 24, 64 + 64);
-    } catch {
-      // Keep fallback
-    }
+  const externalAddress = resolveExternalAddress(intents, externalAddressOverride);
+  if (!externalAddress) {
+    throw new FastError(
+      'INVALID_PARAMS',
+      'executeIntent requires externalAddress when intents do not include a transfer recipient or execute target',
+      {
+        note: 'Pass externalAddress for flows like buildDepositBackIntent() or buildRevokeIntent().',
+      },
+    );
   }
 
   const relayerBody = {
@@ -537,7 +616,11 @@ export async function executeIntent(
 
 // ─── Withdraw (Fast → EVM) ────────────────────────────────────────────────────
 
-async function handleWithdraw(params: BridgeParams, network: 'testnet' | 'mainnet' = DEFAULT_NETWORK, crossSignUrl?: string): Promise<BridgeResult> {
+async function handleWithdraw(
+  params: BridgeParams,
+  network: 'testnet' | 'mainnet' = DEFAULT_NETWORK,
+  provider?: BridgeProviderConfig,
+): Promise<BridgeResult> {
   if (!params.fastWallet) {
     throw new FastError(
       'INVALID_PARAMS',
@@ -549,8 +632,8 @@ async function handleWithdraw(params: BridgeParams, network: 'testnet' | 'mainne
   }
 
   // Resolve token to get EVM address for the transfer intent
-  const tokenInfo = resolveAllSetToken(params.fromToken, params.toChain, network)
-    ?? resolveAllSetToken(params.toToken, params.toChain, network);
+  const tokenInfo = resolveAllSetToken(params.fromToken, params.toChain, network, provider)
+    ?? resolveAllSetToken(params.toToken, params.toChain, network, provider);
 
   if (!tokenInfo) {
     throw new FastError(
@@ -574,6 +657,6 @@ async function handleWithdraw(params: BridgeParams, network: 'testnet' | 'mainne
       amount: params.amount,
       intents: [transferIntent],
     },
-    { network, crossSignUrl: crossSignUrl ?? '' },
+    provider,
   );
 }
