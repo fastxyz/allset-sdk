@@ -6,7 +6,7 @@ description: >
   use sendToExternal for withdrawals (Fast→EVM), use executeIntent for advanced custom operations,
   or debug bridge errors such as TOKEN_NOT_FOUND, INVALID_ADDRESS, INVALID_PARAMS, UNSUPPORTED_OPERATION.
 metadata:
-  version: 0.1.3
+  version: 0.1.2
 ---
 
 # AllSet SDK
