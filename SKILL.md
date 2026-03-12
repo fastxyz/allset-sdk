@@ -72,13 +72,41 @@ const allset = new AllSetProvider({ configPath: './my-networks.json' });
 2. `~/.allset/networks.json` (user override)
 3. Bundled `data/networks.json` (package default)
 
-### 3. Use the correct execution path
+### 3. (Optional) Setting up EVM Wallet
+
+If you need to manage EVM wallets, the SDK provides utilities. This is optional — you can also pass a private key directly to `createEvmExecutor()`.
+
+```ts
+import { createEvmWallet, saveEvmWallet } from '@fastxyz/allset-sdk';
+
+// Generate new wallet
+const wallet = createEvmWallet();
+
+// Load from file
+const wallet = createEvmWallet('~/.allset/.evm/keys/default.json');
+
+// Derive from existing private key
+const wallet = createEvmWallet('0x1234...privateKey...');
+
+// Save wallet for later use
+saveEvmWallet(wallet, '~/.allset/.evm/keys/default.json');
+```
+
+**Same-key pattern:** Use the same private key for both Fast and EVM:
+
+```ts
+const keys = await fastWallet.exportKeys();
+const evmWallet = createEvmWallet(keys.privateKey);
+// Now fastWallet.address and evmWallet.address share the same key
+```
+
+### 4. Use the correct execution path
 
 - **Deposit** requires `evmExecutor` from `createEvmExecutor()`
 - **Withdrawal** requires `fastWallet` from `@fastxyz/sdk`
 - **Advanced intents** require `fastWallet` + array of `Intent` objects
 
-### 4. Respect implementation details
+### 5. Respect implementation details
 
 - Network/chain/token config is in `data/networks.json`
 - Token resolution handles `fastUSDC` → `USDC` normalization
@@ -86,7 +114,7 @@ const allset = new AllSetProvider({ configPath: './my-networks.json' });
 
 Do not invent additional token aliases, chain IDs, or mainnet support unless added to config.
 
-### 5. Validate after edits
+### 6. Validate after edits
 
 If you change code in this repo:
 
@@ -327,13 +355,6 @@ await allset.sendToExternal({
   to: '0xRecipientAddress',  // Different receiver
   fastWallet,
 });
-```
-
-### Same-key pattern
-
-```ts
-const keys = await fastWallet.exportKeys();
-const evmWallet = createEvmWallet(keys.privateKey);
 ```
 
 ## Troubleshooting
