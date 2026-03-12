@@ -41,7 +41,16 @@
  */
 
 // Bridge functions
-export { evmSign, executeBridge } from './bridge.js';
+export { evmSign, executeBridge, executeIntent } from './bridge.js';
+
+// Intent builders
+export {
+  IntentAction,
+  buildTransferIntent,
+  buildExecuteIntent,
+  buildDepositBackIntent,
+  buildRevokeIntent,
+} from './intents.js';
 
 // AllSetProvider class (configurable)
 export {
@@ -74,7 +83,10 @@ export type {
   AllSetTokenInfo,
   SendToFastParams,
   SendToExternalParams,
+  ExecuteIntentParams,
 } from './types.js';
+
+export type { Intent } from './intents.js';
 
 export type { EvmSignResult } from './bridge.js';
 export type { EvmWallet } from './evm-executor.js';

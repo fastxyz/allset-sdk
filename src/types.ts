@@ -78,6 +78,24 @@ export interface SendToExternalParams {
   fastWallet: import('@fastxyz/sdk').FastWallet;
 }
 
+/**
+ * Parameters for executeIntent (advanced intent execution)
+ */
+export interface ExecuteIntentParams {
+  /** Destination EVM chain: 'ethereum' or 'arbitrum' */
+  chain: string;
+  /** FastWallet from @fastxyz/sdk */
+  fastWallet: import('@fastxyz/sdk').FastWallet;
+  /** Token to transfer to bridge (e.g., 'fastUSDC') */
+  token: string;
+  /** Amount in smallest units */
+  amount: string;
+  /** Array of intents to execute on EVM chain */
+  intents: import('./intents.js').Intent[];
+  /** Deadline in seconds from now (default: 3600 = 1 hour) */
+  deadlineSeconds?: number;
+}
+
 export interface AllSetChainConfig {
   chainId: number;
   bridgeContract: string;

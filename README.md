@@ -42,6 +42,24 @@ await allset.sendToExternal({
 });
 ```
 
+## Advanced: Custom Intents
+
+```ts
+import { buildTransferIntent, buildExecuteIntent } from '@fastxyz/allset-sdk';
+
+// Execute custom intents on EVM chain
+await allset.executeIntent({
+  chain: 'arbitrum',
+  fastWallet,
+  token: 'fastUSDC',
+  amount: '1000000',
+  intents: [
+    buildTransferIntent(USDC_ADDRESS, '0xRecipient'),
+    // Add more intents: swaps, protocol calls, etc.
+  ],
+});
+```
+
 ## Supported Networks
 
 | Network | Chain | Status |

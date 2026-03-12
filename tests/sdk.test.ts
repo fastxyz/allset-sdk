@@ -6,6 +6,11 @@ import {
   createEvmWallet,
   AllSetProvider,
   evmSign,
+  IntentAction,
+  buildTransferIntent,
+  buildExecuteIntent,
+  buildDepositBackIntent,
+  buildRevokeIntent,
 } from '../src/index.ts';
 
 // ---------------------------------------------------------------------------
@@ -114,6 +119,79 @@ test('sendToExternal without fastWallet is rejected', async () => {
       amount: '1000000',
       from: 'fast1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq0l98cr',
       to: '0xreceiver',
+      fastWallet: undefined as any,
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code?: string }).code, 'INVALID_PARAMS');
+      return true;
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Intent Builder Tests
+// ---------------------------------------------------------------------------
+
+test('buildTransferIntent creates correct intent', () => {
+  const intent = buildTransferIntent(
+    '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d',
+    '0x1234567890123456789012345678901234567890',
+  );
+  
+  assert.equal(intent.action, IntentAction.DynamicTransfer);
+  assert.ok(intent.payload.startsWith('0x'));
+  assert.equal(intent.value, 0n);
+});
+
+test('buildExecuteIntent creates correct intent', () => {
+  const intent = buildExecuteIntent(
+    '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d',
+    '0xabcdef',
+    100n,
+  );
+  
+  assert.equal(intent.action, IntentAction.Execute);
+  assert.ok(intent.payload.startsWith('0x'));
+  assert.equal(intent.value, 100n);
+});
+
+test('buildExecuteIntent defaults value to 0', () => {
+  const intent = buildExecuteIntent(
+    '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d',
+    '0xabcdef',
+  );
+  
+  assert.equal(intent.value, 0n);
+});
+
+test('buildDepositBackIntent creates correct intent', () => {
+  const intent = buildDepositBackIntent(
+    '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d',
+    'fast1rsxfj84yhsskpr6g5ll2td7pkk3dnlsfwldsmawca4922qn3dqvqsxelzv',
+  );
+  
+  assert.equal(intent.action, IntentAction.DynamicDeposit);
+  assert.ok(intent.payload.startsWith('0x'));
+  assert.equal(intent.value, 0n);
+});
+
+test('buildRevokeIntent creates correct intent', () => {
+  const intent = buildRevokeIntent();
+  
+  assert.equal(intent.action, IntentAction.Revoke);
+  assert.equal(intent.payload, '0x');
+  assert.equal(intent.value, 0n);
+});
+
+test('executeIntent without fastWallet is rejected', async () => {
+  const allset = new AllSetProvider({ network: 'testnet' });
+  
+  await assert.rejects(
+    () => allset.executeIntent({
+      chain: 'arbitrum',
+      token: 'fastUSDC',
+      amount: '1000000',
+      intents: [buildTransferIntent('0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d', '0x1234567890123456789012345678901234567890')],
       fastWallet: undefined as any,
     }),
     (error: unknown) => {

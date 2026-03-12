@@ -9,7 +9,7 @@ import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { NetworkConfig, ChainConfig, TokenConfig, AllNetworksConfig } from './config.js';
-import type { BridgeResult, SendToFastParams, SendToExternalParams } from './types.js';
+import type { BridgeResult, SendToFastParams, SendToExternalParams, ExecuteIntentParams } from './types.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -249,6 +249,40 @@ export class AllSetProvider {
       receiverAddress: params.to,
       fastWallet: params.fastWallet,
     }, this);
+  }
+
+  /**
+   * Execute custom intents on an EVM chain.
+   * 
+   * This is the advanced API for composing custom operations like swaps,
+   * multi-step transactions, or protocol integrations.
+   * 
+   * @example
+   * ```ts
+   * import { buildTransferIntent, buildExecuteIntent } from '@fastxyz/allset-sdk';
+   * 
+   * // Simple transfer
+   * const result = await allset.executeIntent({
+   *   chain: 'arbitrum',
+   *   fastWallet,
+   *   token: 'fastUSDC',
+   *   amount: '1000000',
+   *   intents: [buildTransferIntent(USDC_ADDRESS, '0xRecipient')],
+   * });
+   * 
+   * // Custom contract call
+   * const result = await allset.executeIntent({
+   *   chain: 'arbitrum',
+   *   fastWallet,
+   *   token: 'fastUSDC',
+   *   amount: '1000000',
+   *   intents: [buildExecuteIntent(CONTRACT, calldata)],
+   * });
+   * ```
+   */
+  async executeIntent(params: Omit<ExecuteIntentParams, 'fastWallet'> & { fastWallet: ExecuteIntentParams['fastWallet'] }): Promise<BridgeResult> {
+    const { executeIntent: execIntent } = await import('./bridge.js');
+    return execIntent(params, this);
   }
 
 }

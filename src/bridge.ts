@@ -11,8 +11,9 @@
 import { bech32m } from 'bech32';
 import { encodeAbiParameters, encodeFunctionData } from 'viem';
 import { FastError, type FastWallet } from '@fastxyz/sdk';
-import type { BridgeParams, BridgeResult, AllSetChainConfig, AllSetTokenInfo } from './types.js';
+import type { BridgeParams, BridgeResult, AllSetChainConfig, AllSetTokenInfo, ExecuteIntentParams } from './types.js';
 import { getNetworkConfig, getChainConfig, getTokenConfig, type ChainConfig, type TokenConfig } from './config.js';
+import { type Intent, buildTransferIntent } from './intents.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -354,48 +355,64 @@ async function handleDeposit(params: BridgeParams, network: 'testnet' | 'mainnet
   };
 }
 
-// ─── Withdraw (Fast → EVM) ────────────────────────────────────────────────────
+// ─── Execute Intent (Core) ────────────────────────────────────────────────────
 
-async function handleWithdraw(params: BridgeParams, network: 'testnet' | 'mainnet' = DEFAULT_NETWORK, crossSignUrl?: string): Promise<BridgeResult> {
-  if (!params.fastWallet) {
+/**
+ * Execute intents on an EVM chain after transferring tokens from Fast network.
+ * This is the core function used by sendToExternal and can be used directly for
+ * advanced use cases like swaps, multi-step operations, etc.
+ */
+export async function executeIntent(
+  params: ExecuteIntentParams,
+  provider?: { network: 'testnet' | 'mainnet'; crossSignUrl: string },
+): Promise<BridgeResult> {
+  const network = provider?.network ?? DEFAULT_NETWORK;
+  const crossSignUrl = provider?.crossSignUrl;
+  const { fastWallet, chain, token, amount, intents, deadlineSeconds = 3600 } = params;
+
+  if (!fastWallet) {
     throw new FastError(
       'INVALID_PARAMS',
-      'AllSet withdrawal (Fast → EVM) requires fastWallet',
+      'executeIntent requires fastWallet',
       {
         note: 'Provide a FastWallet from @fastxyz/sdk.\n  Example: const wallet = await FastWallet.fromKeyfile("~/.fast/keys/default.json", provider)',
       },
     );
   }
 
-  const chainConfigRaw = getChainConfig(params.toChain, network);
+  if (!intents || intents.length === 0) {
+    throw new FastError(
+      'INVALID_PARAMS',
+      'executeIntent requires at least one intent',
+      {
+        note: 'Use intent builders like buildTransferIntent(), buildExecuteIntent(), etc.',
+      },
+    );
+  }
+
+  const chainConfigRaw = getChainConfig(chain, network);
   if (!chainConfigRaw) {
     const networkConfig = getNetworkConfig(network);
     throw new FastError(
       'UNSUPPORTED_OPERATION',
-      `AllSet does not support EVM destination chain "${params.toChain}". Supported: ${Object.keys(networkConfig.chains).join(', ')}`,
+      `AllSet does not support EVM chain "${chain}". Supported: ${Object.keys(networkConfig.chains).join(', ')}`,
       {
-        note: 'Use "ethereum" or "arbitrum" as the destination chain for AllSet withdrawals.',
+        note: 'Use "ethereum" or "arbitrum" as the chain.',
       },
     );
   }
   const chainConfig = toAllSetChainConfig(chainConfigRaw);
 
-  let tokenInfo = resolveAllSetToken(params.fromToken, params.toChain, network);
-  if (!tokenInfo) {
-    tokenInfo = resolveAllSetToken(params.toToken, params.toChain, network);
-  }
+  const tokenInfo = resolveAllSetToken(token, chain, network);
   if (!tokenInfo) {
     throw new FastError(
       'TOKEN_NOT_FOUND',
-      `Cannot resolve token "${params.fromToken}" on AllSet for destination chain "${params.toChain}".`,
+      `Cannot resolve token "${token}" on AllSet for chain "${chain}".`,
       {
-        note: 'Supported tokens: USDC, fastUSDC.\n  Example: await allset.bridge({ fromChain: "fast", toChain: "arbitrum", fromToken: "fastUSDC", toToken: "USDC", amount: "1000000", senderAddress: "fast1...", receiverAddress: "0x..." })',
+        note: 'Supported tokens: USDC, fastUSDC.',
       },
     );
   }
-
-  const evmTokenAddress = tokenInfo.evmAddress;
-  const fastWallet = params.fastWallet;
 
   // Step 1: Transfer tokens to bridge address on Fast network
   const transferResult = await fastWallet.submit({
@@ -403,7 +420,7 @@ async function handleWithdraw(params: BridgeParams, network: 'testnet' | 'mainne
     claim: {
       TokenTransfer: {
         token_id: tokenInfo.fastsetTokenId,
-        amount: amountToHex(params.amount),
+        amount: amountToHex(amount),
         user_data: null,
       },
     },
@@ -411,21 +428,10 @@ async function handleWithdraw(params: BridgeParams, network: 'testnet' | 'mainne
 
   // Step 2: Cross-sign the transfer certificate
   const transferCrossSign = await evmSign(transferResult.certificate, crossSignUrl);
-
-  // Use the transaction hash directly (keccak256 of BCS-serialized transaction)
   const transferFastTxId = transferResult.txHash as `0x${string}`;
 
-  // Step 3: Build intent claim
-  const dynamicTransferPayload = encodeAbiParameters(
-    [{ type: 'address' }, { type: 'address' }],
-    [
-      evmTokenAddress as `0x${string}`,
-      params.receiverAddress as `0x${string}`,
-    ],
-  );
-
-  // Deadline: 1 hour from now
-  const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
+  // Step 3: Build intent claim with provided intents
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + deadlineSeconds);
 
   const intentClaimEncoded = encodeAbiParameters(
     [{
@@ -447,11 +453,11 @@ async function handleWithdraw(params: BridgeParams, network: 'testnet' | 'mainne
     [{
       transferFastTxId,
       deadline,
-      intents: [{
-        action: 1,
-        payload: dynamicTransferPayload,
-        value: 0n,
-      }],
+      intents: intents.map(i => ({
+        action: i.action,
+        payload: i.payload,
+        value: i.value,
+      })),
     }],
   );
 
@@ -476,18 +482,33 @@ async function handleWithdraw(params: BridgeParams, network: 'testnet' | 'mainne
   const intentCrossSign = await evmSign(intentResult.certificate, crossSignUrl);
 
   // Step 6: Submit to relayer
+  // Note: external_address is set from the first transfer intent if available
+  const firstTransferIntent = intents.find(i => i.action === 1);
+  let externalAddress = fastWallet.address; // fallback
+  if (firstTransferIntent) {
+    // Decode the receiver from DynamicTransfer payload
+    try {
+      const payloadHex = firstTransferIntent.payload.slice(2);
+      // DynamicTransfer payload is (address token, address receiver)
+      // Each address is 32 bytes (padded), so receiver starts at byte 32
+      externalAddress = '0x' + payloadHex.slice(64 + 24, 64 + 64);
+    } catch {
+      // Keep fallback
+    }
+  }
+
   const relayerBody = {
     encoded_transfer_claim: Array.from(new Uint8Array(transferCrossSign.transaction.map(Number))),
     transfer_proof: transferCrossSign.signature,
     transfer_fast_tx_id: transferResult.txHash,
     transfer_claim_id: transferResult.txHash,
-    fastset_address: params.senderAddress,
-    external_address: params.receiverAddress,
+    fastset_address: fastWallet.address,
+    external_address: externalAddress,
     encoded_intent_claim: Array.from(new Uint8Array(intentCrossSign.transaction.map(Number))),
     intent_proof: intentCrossSign.signature,
     intent_fast_tx_id: intentResult.txHash,
     intent_claim_id: intentResult.txHash,
-    external_token_address: evmTokenAddress,
+    external_token_address: tokenInfo.evmAddress,
   };
 
   const relayRes = await fetch(chainConfig.relayerUrl, {
@@ -502,7 +523,7 @@ async function handleWithdraw(params: BridgeParams, network: 'testnet' | 'mainne
       'TX_FAILED',
       `AllSet relayer request failed (${relayRes.status}): ${text}`,
       {
-        note: 'The withdrawal was submitted to Fast network but the relayer rejected it. Try again.',
+        note: 'The intent was submitted to Fast network but the relayer rejected it. Try again.',
       },
     );
   }
@@ -512,4 +533,47 @@ async function handleWithdraw(params: BridgeParams, network: 'testnet' | 'mainne
     orderId: transferFastTxId,
     estimatedTime: '1-5 minutes',
   };
+}
+
+// ─── Withdraw (Fast → EVM) ────────────────────────────────────────────────────
+
+async function handleWithdraw(params: BridgeParams, network: 'testnet' | 'mainnet' = DEFAULT_NETWORK, crossSignUrl?: string): Promise<BridgeResult> {
+  if (!params.fastWallet) {
+    throw new FastError(
+      'INVALID_PARAMS',
+      'AllSet withdrawal (Fast → EVM) requires fastWallet',
+      {
+        note: 'Provide a FastWallet from @fastxyz/sdk.\n  Example: const wallet = await FastWallet.fromKeyfile("~/.fast/keys/default.json", provider)',
+      },
+    );
+  }
+
+  // Resolve token to get EVM address for the transfer intent
+  const tokenInfo = resolveAllSetToken(params.fromToken, params.toChain, network)
+    ?? resolveAllSetToken(params.toToken, params.toChain, network);
+
+  if (!tokenInfo) {
+    throw new FastError(
+      'TOKEN_NOT_FOUND',
+      `Cannot resolve token "${params.fromToken}" on AllSet for destination chain "${params.toChain}".`,
+      {
+        note: 'Supported tokens: USDC, fastUSDC.',
+      },
+    );
+  }
+
+  // Build a simple transfer intent
+  const transferIntent = buildTransferIntent(tokenInfo.evmAddress, params.receiverAddress);
+
+  // Execute the intent
+  return executeIntent(
+    {
+      chain: params.toChain,
+      fastWallet: params.fastWallet,
+      token: params.fromToken,
+      amount: params.amount,
+      intents: [transferIntent],
+    },
+    { network, crossSignUrl: crossSignUrl ?? '' },
+  );
 }
