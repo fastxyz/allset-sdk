@@ -106,6 +106,8 @@ const evmWallet = createEvmWallet(keys.privateKey);
 - **Withdrawal** requires `fastWallet` from `@fastxyz/sdk`
 - **Advanced intents** require `fastWallet` + array of `Intent` objects
 
+> **See the [Examples](#examples) section below for complete code samples of each execution path.**
+
 ### 5. Respect implementation details
 
 - Network/chain/token config is in `data/networks.json`
