@@ -9,7 +9,7 @@ import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { NetworkConfig, ChainConfig, TokenConfig, AllNetworksConfig } from './config.js';
-import type { BridgeParams, BridgeResult } from './types.js';
+import type { BridgeResult, SendToFastParams, SendToExternalParams } from './types.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -192,29 +192,65 @@ export class AllSetProvider {
   }
 
   /**
-   * Bridge tokens between Fast network and EVM chains.
+   * Deposit tokens from EVM chain to Fast network.
    * 
    * @example
    * ```ts
-   * // Withdraw fastUSDC to USDC on Arbitrum
-   * const result = await provider.bridge({
-   *   fromChain: 'fast',
-   *   toChain: 'arbitrum',
-   *   fromToken: 'fastUSDC',
-   *   toToken: 'USDC',
-   *   fromDecimals: 6,
+   * const result = await allset.sendToFast({
+   *   chain: 'arbitrum',
+   *   token: 'USDC',
    *   amount: '1000000',
-   *   senderAddress: fastWallet.address,
-   *   receiverAddress: '0x...',
+   *   from: '0xYourEvmAddress',
+   *   to: 'fast1receiveraddress',
+   *   evmExecutor,
+   * });
+   * ```
+   */
+  async sendToFast(params: SendToFastParams): Promise<BridgeResult> {
+    const { executeBridge } = await import('./bridge.js');
+    return executeBridge({
+      fromChain: params.chain,
+      toChain: 'fast',
+      fromToken: params.token,
+      toToken: params.token === 'USDC' ? 'fastUSDC' : params.token,
+      fromDecimals: 6,
+      amount: params.amount,
+      senderAddress: params.from,
+      receiverAddress: params.to,
+      evmExecutor: params.evmExecutor,
+    }, this);
+  }
+
+  /**
+   * Withdraw tokens from Fast network to EVM chain.
+   * 
+   * @example
+   * ```ts
+   * const result = await allset.sendToExternal({
+   *   chain: 'arbitrum',
+   *   token: 'fastUSDC',
+   *   amount: '1000000',
+   *   from: fastWallet.address,
+   *   to: '0xReceiverEvmAddress',
    *   fastWallet,
    * });
    * ```
    */
-  async bridge(params: BridgeParams): Promise<BridgeResult> {
-    // Import dynamically to avoid circular dependency
+  async sendToExternal(params: SendToExternalParams): Promise<BridgeResult> {
     const { executeBridge } = await import('./bridge.js');
-    return executeBridge(params, this);
+    return executeBridge({
+      fromChain: 'fast',
+      toChain: params.chain,
+      fromToken: params.token,
+      toToken: params.token === 'fastUSDC' ? 'USDC' : params.token,
+      fromDecimals: 6,
+      amount: params.amount,
+      senderAddress: params.from,
+      receiverAddress: params.to,
+      fastWallet: params.fastWallet,
+    }, this);
   }
+
 }
 
 // ---------------------------------------------------------------------------

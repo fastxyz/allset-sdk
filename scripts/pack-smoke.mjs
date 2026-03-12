@@ -60,7 +60,7 @@ try {
     [
       '--input-type=module',
       '--eval',
-      `import { AllSetProvider, createEvmExecutor } from ${JSON.stringify(manifest.name)}; const allset = new AllSetProvider(); if (typeof allset?.bridge !== "function") throw new Error("AllSetProvider bridge method missing"); if (typeof createEvmExecutor !== "function") throw new Error("createEvmExecutor export missing"); if (allset?.network !== "testnet") throw new Error("unexpected default network");`,
+      `import { AllSetProvider, createEvmExecutor } from ${JSON.stringify(manifest.name)}; const allset = new AllSetProvider(); if (typeof allset?.sendToFast !== "function") throw new Error("AllSetProvider sendToFast method missing"); if (typeof allset?.sendToExternal !== "function") throw new Error("AllSetProvider sendToExternal method missing"); if (typeof createEvmExecutor !== "function") throw new Error("createEvmExecutor export missing"); if (allset?.network !== "testnet") throw new Error("unexpected default network");`,
     ],
     {
       cwd: tempDir,

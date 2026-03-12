@@ -8,6 +8,10 @@ import {
   evmSign,
 } from '../src/index.ts';
 
+// ---------------------------------------------------------------------------
+// AllSetProvider Tests
+// ---------------------------------------------------------------------------
+
 test('AllSetProvider exposes expected properties', () => {
   const allset = new AllSetProvider({ network: 'testnet' });
   assert.equal(allset.network, 'testnet');
@@ -48,19 +52,46 @@ test('AllSetProvider.getTokenConfig returns config and normalizes fastUSDC', () 
   assert.deepEqual(fastUsdcConfig, usdcConfig);
 });
 
-test('unsupported route is rejected', async () => {
+// ---------------------------------------------------------------------------
+// sendToFast Tests
+// ---------------------------------------------------------------------------
+
+test('sendToFast without evmExecutor is rejected', async () => {
   const allset = new AllSetProvider({ network: 'testnet' });
   
   await assert.rejects(
-    () => allset.bridge({
-      fromChain: 'ethereum',
-      toChain: 'arbitrum',
-      fromToken: 'USDC',
-      toToken: 'USDC',
-      fromDecimals: 6,
+    () => allset.sendToFast({
+      chain: 'arbitrum',
+      token: 'USDC',
       amount: '1000000',
-      senderAddress: '0xsender',
-      receiverAddress: '0xreceiver',
+      from: '0xsender',
+      to: 'fast1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq0l98cr',
+      evmExecutor: undefined as any,
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code?: string }).code, 'INVALID_PARAMS');
+      return true;
+    },
+  );
+});
+
+test('sendToFast with unsupported chain is rejected', async () => {
+  const allset = new AllSetProvider({ network: 'testnet' });
+  
+  const mockExecutor = {
+    sendTx: async () => ({ txHash: '0x123', status: 'success' as const }),
+    checkAllowance: async () => BigInt(0),
+    approveErc20: async () => '0x123',
+  };
+  
+  await assert.rejects(
+    () => allset.sendToFast({
+      chain: 'unsupported',
+      token: 'USDC',
+      amount: '1000000',
+      from: '0xsender',
+      to: 'fast1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq0l98cr',
+      evmExecutor: mockExecutor,
     }),
     (error: unknown) => {
       assert.equal((error as { code?: string }).code, 'UNSUPPORTED_OPERATION');
@@ -69,19 +100,21 @@ test('unsupported route is rejected', async () => {
   );
 });
 
-test('deposit without evmExecutor is rejected', async () => {
+// ---------------------------------------------------------------------------
+// sendToExternal Tests
+// ---------------------------------------------------------------------------
+
+test('sendToExternal without fastWallet is rejected', async () => {
   const allset = new AllSetProvider({ network: 'testnet' });
   
   await assert.rejects(
-    () => allset.bridge({
-      fromChain: 'arbitrum',
-      toChain: 'fast',
-      fromToken: 'USDC',
-      toToken: 'fastUSDC',
-      fromDecimals: 6,
+    () => allset.sendToExternal({
+      chain: 'arbitrum',
+      token: 'fastUSDC',
       amount: '1000000',
-      senderAddress: '0xsender',
-      receiverAddress: 'fast1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq0l98cr',
+      from: 'fast1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq0l98cr',
+      to: '0xreceiver',
+      fastWallet: undefined as any,
     }),
     (error: unknown) => {
       assert.equal((error as { code?: string }).code, 'INVALID_PARAMS');
@@ -90,26 +123,9 @@ test('deposit without evmExecutor is rejected', async () => {
   );
 });
 
-test('withdrawal without fastWallet is rejected', async () => {
-  const allset = new AllSetProvider({ network: 'testnet' });
-  
-  await assert.rejects(
-    () => allset.bridge({
-      fromChain: 'fast',
-      toChain: 'arbitrum',
-      fromToken: 'fastUSDC',
-      toToken: 'USDC',
-      fromDecimals: 6,
-      amount: '1000000',
-      senderAddress: 'fast1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq0l98cr',
-      receiverAddress: '0xreceiver',
-    }),
-    (error: unknown) => {
-      assert.equal((error as { code?: string }).code, 'INVALID_PARAMS');
-      return true;
-    },
-  );
-});
+// ---------------------------------------------------------------------------
+// EVM Executor Tests
+// ---------------------------------------------------------------------------
 
 test('createEvmExecutor rejects unsupported chain ids', () => {
   assert.throws(
@@ -117,6 +133,10 @@ test('createEvmExecutor rejects unsupported chain ids', () => {
     /Unsupported EVM chain ID/,
   );
 });
+
+// ---------------------------------------------------------------------------
+// EVM Wallet Tests
+// ---------------------------------------------------------------------------
 
 test('createEvmWallet generates valid wallet', () => {
   const wallet = createEvmWallet();
@@ -150,6 +170,10 @@ test('createEvmWallet derives address from provided privateKey', () => {
   const derivedWithoutPrefix = createEvmWallet(original.privateKey.slice(2));
   assert.equal(derivedWithoutPrefix.address, original.address, 'address should match without 0x prefix');
 });
+
+// ---------------------------------------------------------------------------
+// evmSign Tests
+// ---------------------------------------------------------------------------
 
 test('evmSign rejects invalid certificates', async (t) => {
   const originalFetch = globalThis.fetch;

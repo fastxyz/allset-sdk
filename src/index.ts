@@ -1,7 +1,7 @@
 /**
  * @fastxyz/allset-sdk — AllSet bridge SDK
  *
- * Bridges assets between Fast network and supported EVM routes.
+ * Bridge tokens between Fast network and EVM chains.
  *
  * Prerequisites: Install @fastxyz/sdk for FastWallet support.
  *   npm install @fastxyz/sdk @fastxyz/allset-sdk
@@ -9,25 +9,32 @@
  * @example
  * ```ts
  * import { FastProvider, FastWallet } from '@fastxyz/sdk';
- * import { AllSetProvider, createEvmWallet } from '@fastxyz/allset-sdk';
+ * import { AllSetProvider, createEvmExecutor, createEvmWallet } from '@fastxyz/allset-sdk';
  *
- * // Create providers
+ * // Setup
  * const fastProvider = new FastProvider({ network: 'testnet' });
  * const allset = new AllSetProvider({ network: 'testnet' });
- *
- * // Create wallets
  * const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);
  * const evmWallet = createEvmWallet('~/.allset/.evm/keys/default.json');
  *
- * // Bridge Fast → EVM
- * await allset.bridge({
- *   fromChain: 'fast',
- *   toChain: 'arbitrum',
- *   fromToken: 'fastUSDC',
- *   toToken: 'USDC',
+ * // Deposit: EVM → Fast
+ * const evmExecutor = createEvmExecutor(evmWallet.privateKey, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
+ * await allset.sendToFast({
+ *   chain: 'arbitrum',
+ *   token: 'USDC',
  *   amount: '1000000',
- *   senderAddress: fastWallet.address,
- *   receiverAddress: evmWallet.address,
+ *   from: evmWallet.address,
+ *   to: fastWallet.address,
+ *   evmExecutor,
+ * });
+ *
+ * // Withdraw: Fast → EVM
+ * await allset.sendToExternal({
+ *   chain: 'arbitrum',
+ *   token: 'fastUSDC',
+ *   amount: '1000000',
+ *   from: fastWallet.address,
+ *   to: evmWallet.address,
  *   fastWallet,
  * });
  * ```
@@ -65,6 +72,8 @@ export type {
   EvmTxExecutor,
   AllSetChainConfig,
   AllSetTokenInfo,
+  SendToFastParams,
+  SendToExternalParams,
 } from './types.js';
 
 export type { EvmSignResult } from './bridge.js';
