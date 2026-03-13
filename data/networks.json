@@ -1,29 +1,29 @@
 {
   "testnet": {
-    "crossSignUrl": "https://staging.cross-sign.allset.fastset.xyz",
+    "crossSignUrl": "https://testnet.cross-sign.allset.fast.xyz",
     "chains": {
       "ethereum": {
         "chainId": 11155111,
-        "bridgeContract": "0xFbBF206a14C6a143fd74881630A9Af2ADfD2352A",
-        "fastBridgeAddress": "fast1sg8fsgh9xuuly5crtqjyvsue0vae09p7xklfz6a57rcwajmdcpfqavue5f",
-        "relayerUrl": "https://staging.allset.fastset.xyz/ethereum-sepolia/relayer/relay",
+        "bridgeContract": "0x96A2a48Eb19144b01a23ec5B52085D848e1344F5",
+        "fastBridgeAddress": "fast1fxtkgpwcy7hnakw96gg7relph4wxx7ghrukm723p3l9adxuxljzsc6f958",
+        "relayerUrl": "https://testnet.allset.fast.xyz/ethereum-sepolia/relayer/relay",
         "tokens": {
           "USDC": {
             "evmAddress": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
-            "fastTokenId": "b4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5",
+            "fastTokenId": "9c52fe9465f57bc526c11aa0c048fd8709aa46abc06d15c80cbed9263d4d4df8",
             "decimals": 6
           }
         }
       },
       "arbitrum": {
         "chainId": 421614,
-        "bridgeContract": "0x81b1BdC34e52a4d822526AD8BF0b7F6aA2a6c901",
-        "fastBridgeAddress": "fast1x0g58phuf0pf32e9uvp3mv6hak4z37ytpqyfzjzhfsehua9kmegqwzv0td",
-        "relayerUrl": "https://staging.allset.fastset.xyz/arbitrum-sepolia/relayer/relay",
+        "bridgeContract": "0x00d6aE842Bb6e13457b241e69d542560EdDAF224",
+        "fastBridgeAddress": "fast1tkmtqxulhnzeeg9zhuwxy3x95wr7waytm9cq40ndf7tkuwwcc6jseg24j8",
+        "relayerUrl": "https://testnet.allset.fast.xyz/arbitrum-sepolia/relayer/relay",
         "tokens": {
           "USDC": {
             "evmAddress": "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
-            "fastTokenId": "b4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5",
+            "fastTokenId": "9c52fe9465f57bc526c11aa0c048fd8709aa46abc06d15c80cbed9263d4d4df8",
             "decimals": 6
           }
         }
@@ -31,7 +31,7 @@
     }
   },
   "mainnet": {
-    "crossSignUrl": "https://cross-sign.allset.fastset.xyz",
+    "crossSignUrl": "https://cross-sign.allset.fast.xyz",
     "chains": {}
   }
 }

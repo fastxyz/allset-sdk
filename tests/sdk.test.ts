@@ -483,7 +483,7 @@ test('executeBridge withdrawal uses the default cross-sign URL without a provide
     } as any,
   });
 
-  assert.equal(urls[0], 'https://staging.cross-sign.allset.fastset.xyz');
-  assert.equal(urls[1], 'https://staging.cross-sign.allset.fastset.xyz');
-  assert.equal(urls[2], 'https://staging.allset.fastset.xyz/arbitrum-sepolia/relayer/relay');
+  assert.equal(urls[0], 'https://testnet.cross-sign.allset.fast.xyz');
+  assert.equal(urls[1], 'https://testnet.cross-sign.allset.fast.xyz');
+  assert.equal(urls[2], 'https://testnet.allset.fast.xyz/arbitrum-sepolia/relayer/relay');
 });
