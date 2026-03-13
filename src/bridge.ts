@@ -92,8 +92,9 @@ function resolveAllSetToken(
   network: 'testnet' | 'mainnet' = DEFAULT_NETWORK,
   provider?: BridgeProviderConfig,
 ): AllSetTokenInfo | null {
-  // Normalize token name - fastUSDC on Fast maps to USDC on EVM
-  const normalizedToken = token.toLowerCase() === 'fastusdc' ? 'USDC' : token;
+  // Normalize token name - fastUSDC/testUSDC on Fast maps to USDC on EVM
+  const lowerToken = token.toLowerCase();
+  const normalizedToken = (lowerToken === 'fastusdc' || lowerToken === 'testusdc') ? 'USDC' : token;
 
   // Try exact match first
   const tokenConfig = resolveTokenConfig(evmChain, normalizedToken, network, provider);
