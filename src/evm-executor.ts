@@ -22,9 +22,19 @@ import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { arbitrumSepolia, sepolia } from 'viem/chains';
 import type { EvmTxExecutor } from './types.js';
 
+/**
+ * EVM wallet containing private key, address, and derived account.
+ * 
+ * The `account` field holds the viem Account object, avoiding repeated
+ * derivation when creating executors or signing transactions.
+ */
 export interface EvmWallet {
+  /** Private key with 0x prefix */
   privateKey: `0x${string}`;
+  /** EVM address */
   address: `0x${string}`;
+  /** Viem Account object (derived from privateKey) */
+  account: Account;
 }
 
 // Default EVM keys directory
@@ -63,6 +73,9 @@ function isFilePath(input: string): boolean {
 /**
  * Create, derive, or load an EVM wallet.
  *
+ * Returns an EvmWallet with the derived `account` object, avoiding repeated
+ * calls to `privateKeyToAccount()` when using the wallet.
+ *
  * @param keyOrPath - Optional. Can be:
  *   - Omitted: generates a new random wallet
  *   - Private key (64 hex chars, with or without 0x): derives address from it
@@ -77,14 +90,13 @@ function isFilePath(input: string): boolean {
  * const wallet = createEvmWallet('0x1234...64hexchars...');
  *
  * // Load from file
- * const wallet = createEvmWallet('~/.evm/keys/default.json');
+ * const wallet = createEvmWallet('~/.allset/.evm/keys/default.json');
  *
- * // Same-key pattern (derive from Fast wallet)
- * const keys = await fastWallet.exportKeys();
- * const evmWallet = createEvmWallet(keys.privateKey);
+ * // Create executor using wallet (no re-derivation needed)
+ * const executor = createEvmExecutor(wallet, rpcUrl, chainId);
  * ```
  *
- * @returns Object containing privateKey and address
+ * @returns EvmWallet with privateKey, address, and account
  */
 export function createEvmWallet(keyOrPath?: string): EvmWallet {
   let key: `0x${string}`;
@@ -113,6 +125,7 @@ export function createEvmWallet(keyOrPath?: string): EvmWallet {
   return {
     privateKey: key,
     address: account.address,
+    account,
   };
 }
 
@@ -121,7 +134,7 @@ export function createEvmWallet(keyOrPath?: string): EvmWallet {
  *
  * Creates parent directories if they don't exist.
  * The file format matches Fast wallet keyfiles for consistency.
- * Default location: ~/.allset/.evm/keys/
+ * Only saves privateKey and address (account is derived at load time).
  *
  * @param wallet - The wallet object with privateKey and address
  * @param path - File path to save to (supports ~ expansion)
@@ -140,6 +153,7 @@ export function saveEvmWallet(wallet: EvmWallet, path: string): void {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
 
+  // Only save privateKey and address (account is runtime-only)
   const data = {
     privateKey: wallet.privateKey.replace('0x', ''), // Store without 0x prefix like Fast wallet
     address: wallet.address,
@@ -158,13 +172,27 @@ const CHAIN_MAP: Record<number, Chain> = {
   421614: arbitrumSepolia,
 };
 
+/**
+ * Create an EVM transaction executor for bridge operations.
+ *
+ * @param wallet - EvmWallet from createEvmWallet()
+ * @param rpcUrl - RPC endpoint URL
+ * @param chainId - Chain ID (11155111 for Sepolia, 421614 for Arbitrum Sepolia)
+ *
+ * @example
+ * ```ts
+ * const wallet = createEvmWallet('~/.allset/.evm/keys/default.json');
+ * const executor = createEvmExecutor(wallet, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
+ * 
+ * // Use executor for bridge deposit
+ * await allset.sendToFast({ ..., evmExecutor: executor });
+ * ```
+ */
 export function createEvmExecutor(
-  privateKey: string,
+  wallet: EvmWallet,
   rpcUrl: string,
   chainId: number,
 ): EvmTxExecutor {
-  const key = (privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`) as `0x${string}`;
-  const account: Account = privateKeyToAccount(key);
   const chain = CHAIN_MAP[chainId];
   if (!chain) {
     throw new Error(
@@ -172,8 +200,9 @@ export function createEvmExecutor(
     );
   }
 
+  // Use wallet.account directly - no re-derivation needed
   const walletClient = createWalletClient({
-    account,
+    account: wallet.account,
     chain,
     transport: http(rpcUrl),
   });

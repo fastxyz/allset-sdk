@@ -310,7 +310,7 @@ async function handleDeposit(
       'INVALID_PARAMS',
       'AllSet deposit (EVM → Fast) requires evmExecutor',
       {
-        note: 'Provide an evmExecutor created with createEvmExecutor().\n  Example: const executor = createEvmExecutor(privateKey, rpcUrl, chainId)',
+        note: 'Provide an evmExecutor created with createEvmExecutor().\n  Example: const wallet = createEvmWallet(); const executor = createEvmExecutor(wallet, rpcUrl, chainId)',
       },
     );
   }

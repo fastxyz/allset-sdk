@@ -18,7 +18,7 @@
  * const evmWallet = createEvmWallet('~/.allset/.evm/keys/default.json');
  *
  * // Deposit: EVM → Fast
- * const evmExecutor = createEvmExecutor(evmWallet.privateKey, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
+ * const evmExecutor = createEvmExecutor(evmWallet, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
  * await allset.sendToFast({
  *   chain: 'arbitrum',
  *   token: 'USDC',

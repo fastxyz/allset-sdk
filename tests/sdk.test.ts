@@ -349,8 +349,9 @@ test('executeIntent rejects intents without an EVM target unless externalAddress
 // ---------------------------------------------------------------------------
 
 test('createEvmExecutor rejects unsupported chain ids', () => {
+  const wallet = createEvmWallet(`0x${'11'.repeat(32)}`);
   assert.throws(
-    () => createEvmExecutor(`0x${'11'.repeat(32)}`, 'http://localhost:8545', 1),
+    () => createEvmExecutor(wallet, 'http://localhost:8545', 1),
     /Unsupported EVM chain ID/,
   );
 });

@@ -33,7 +33,7 @@ npm install @fastxyz/sdk @fastxyz/allset-sdk
 - `buildRevokeIntent()` — Cancel pending intent
 
 **Utilities:**
-- `createEvmExecutor(privateKey, rpcUrl, chainId)` — EVM transaction executor
+- `createEvmExecutor(wallet, rpcUrl, chainId)` — EVM transaction executor (uses wallet.account)
 - `createEvmWallet(keyOrPath?)` — Generate/load EVM wallet
 - `saveEvmWallet(wallet, path)` — Save wallet to file
 
@@ -74,7 +74,7 @@ const allset = new AllSetProvider({ configPath: './my-networks.json' });
 
 ### 3. (Optional) Setting up EVM Wallet
 
-If you need to manage EVM wallets, the SDK provides utilities. This is optional — you can also pass a private key directly to `createEvmExecutor()`.
+If you need to manage EVM wallets, the SDK provides utilities. The `createEvmWallet()` function returns an `EvmWallet` with a pre-derived `account` object, avoiding repeated key derivation when creating executors.
 
 ```ts
 import { createEvmWallet, saveEvmWallet } from '@fastxyz/allset-sdk';
@@ -307,7 +307,7 @@ enum IntentAction {
 
 ```ts
 const evmExecutor = createEvmExecutor(
-  evmWallet.privateKey,
+  evmWallet,
   'https://sepolia-rollup.arbitrum.io/rpc',
   421614,
 );
