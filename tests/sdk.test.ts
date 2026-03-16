@@ -356,6 +356,30 @@ test('createEvmExecutor rejects unsupported chain ids', () => {
   );
 });
 
+test('createEvmExecutor accepts raw private key string', () => {
+  const privateKey = `0x${'22'.repeat(32)}` as const;
+  
+  // Should not throw when passing private key directly
+  const executor = createEvmExecutor(privateKey, 'http://localhost:8545', 421614);
+  
+  // Verify executor was created with expected interface
+  assert.ok(typeof executor.sendTx === 'function', 'should have sendTx method');
+  assert.ok(typeof executor.checkAllowance === 'function', 'should have checkAllowance method');
+  assert.ok(typeof executor.approveErc20 === 'function', 'should have approveErc20 method');
+});
+
+test('createEvmExecutor accepts EvmWallet object', () => {
+  const wallet = createEvmWallet(`0x${'33'.repeat(32)}`);
+  
+  // Should not throw when passing EvmWallet
+  const executor = createEvmExecutor(wallet, 'http://localhost:8545', 421614);
+  
+  // Verify executor was created with expected interface
+  assert.ok(typeof executor.sendTx === 'function', 'should have sendTx method');
+  assert.ok(typeof executor.checkAllowance === 'function', 'should have checkAllowance method');
+  assert.ok(typeof executor.approveErc20 === 'function', 'should have approveErc20 method');
+});
+
 // ---------------------------------------------------------------------------
 // EVM Wallet Tests
 // ---------------------------------------------------------------------------

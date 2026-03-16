@@ -63,6 +63,7 @@ export {
 
 // EVM utilities
 export { createEvmExecutor, createEvmWallet, saveEvmWallet, getEvmKeysDir } from './evm-executor.js';
+export type { EvmWalletInput } from './evm-executor.js';
 
 // Config utilities (lower-level)
 export {

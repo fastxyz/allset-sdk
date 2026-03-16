@@ -21,7 +21,9 @@ const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fas
 const evmWallet = createEvmWallet('~/.allset/.evm/keys/default.json');
 
 // Deposit: EVM → Fast
+// createEvmExecutor accepts either EvmWallet or raw private key
 const evmExecutor = createEvmExecutor(evmWallet, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
+// Alternative: createEvmExecutor('0xprivateKey...', rpcUrl, chainId);
 await allset.sendToFast({
   chain: 'arbitrum',
   token: 'USDC',

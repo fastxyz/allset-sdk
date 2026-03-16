@@ -33,7 +33,7 @@ npm install @fastxyz/sdk @fastxyz/allset-sdk
 - `buildRevokeIntent()` — Cancel pending intent
 
 **Utilities:**
-- `createEvmExecutor(wallet, rpcUrl, chainId)` — EVM transaction executor (uses wallet.account)
+- `createEvmExecutor(walletOrKey, rpcUrl, chainId)` — EVM transaction executor (accepts `EvmWallet` or raw private key)
 - `createEvmWallet(keyOrPath?)` — Generate/load EVM wallet
 - `saveEvmWallet(wallet, path)` — Save wallet to file
 
@@ -303,11 +303,41 @@ enum IntentAction {
 
 ## Examples
 
+### createEvmExecutor — Two Patterns
+
+The executor accepts either an `EvmWallet` object or a raw private key string:
+
+```ts
+import { createEvmExecutor, createEvmWallet } from '@fastxyz/allset-sdk';
+
+// Pattern 1: Using EvmWallet (recommended when reusing wallet)
+const wallet = createEvmWallet('~/.allset/.evm/keys/default.json');
+const executor = createEvmExecutor(wallet, RPC_URL, CHAIN_ID);
+
+// Pattern 2: Using raw private key (quick start, backward compatible)
+const executor = createEvmExecutor('0xabc123...privateKey', RPC_URL, CHAIN_ID);
+```
+
+**When to use each:**
+
+| Pattern | Use Case |
+|---------|----------|
+| `EvmWallet` | When you need to reference `wallet.address`, save/load wallets, or reuse across multiple executors |
+| Private key | Quick scripts, one-off transactions, or when you already have the key as a string |
+
 ### Deposit to your own Fast address
 
 ```ts
+// Using EvmWallet
 const evmExecutor = createEvmExecutor(
   evmWallet,
+  'https://sepolia-rollup.arbitrum.io/rpc',
+  421614,
+);
+
+// Or using raw private key
+const evmExecutor = createEvmExecutor(
+  '0x1234...privateKey',
   'https://sepolia-rollup.arbitrum.io/rpc',
   421614,
 );
@@ -316,7 +346,7 @@ await allset.sendToFast({
   chain: 'arbitrum',
   token: 'USDC',
   amount: '1000000',
-  from: evmWallet.address,
+  from: evmWallet.address,  // or derive: privateKeyToAccount(key).address
   to: fastWallet.address,
   evmExecutor,
 });
