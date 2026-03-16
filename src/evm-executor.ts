@@ -104,22 +104,9 @@ const CHAIN_MAP: Record<number, Chain> = {
 };
 
 /**
- * Input type for createEvmExecutor: either a viem Account or a raw private key.
- * 
- * When a private key string is provided, the account is derived internally.
- */
-export type EvmWalletInput = Account | `0x${string}`;
-
-/**
  * Create an EVM transaction executor for bridge operations.
  *
- * Accepts either a viem Account or a raw private key string for convenience.
- * When a private key is provided, the account is derived internally using viem's
- * privateKeyToAccount().
- *
- * @param accountOrKey - Either:
- *   - viem Account from createEvmWallet() or privateKeyToAccount()
- *   - Private key string (0x-prefixed, 66 chars total)
+ * @param account - viem Account from createEvmWallet() or privateKeyToAccount()
  * @param rpcUrl - RPC endpoint URL
  * @param chainId - Chain ID (11155111 for Sepolia, 421614 for Arbitrum Sepolia)
  *
@@ -134,15 +121,12 @@ export type EvmWalletInput = Account | `0x${string}`;
  * const account = privateKeyToAccount('0xabc123...');
  * const executor = createEvmExecutor(account, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
  * 
- * // Using raw private key (quick start)
- * const executor = createEvmExecutor('0xabc123...', 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
- * 
  * // Use executor for bridge deposit
  * await allset.sendToFast({ ..., evmExecutor: executor });
  * ```
  */
 export function createEvmExecutor(
-  accountOrKey: EvmWalletInput,
+  account: Account,
   rpcUrl: string,
   chainId: number,
 ): EvmTxExecutor {
@@ -152,11 +136,6 @@ export function createEvmExecutor(
       `Unsupported EVM chain ID: ${chainId}. Supported: ${Object.keys(CHAIN_MAP).join(', ')}`,
     );
   }
-
-  // Normalize: if string (private key), derive account; otherwise use directly
-  const account = typeof accountOrKey === 'string'
-    ? privateKeyToAccount(accountOrKey)
-    : accountOrKey;
 
   const walletClient = createWalletClient({
     account,
