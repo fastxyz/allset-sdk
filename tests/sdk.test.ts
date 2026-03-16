@@ -348,32 +348,32 @@ test('executeIntent rejects intents without an EVM target unless externalAddress
 // EVM Executor Tests
 // ---------------------------------------------------------------------------
 
-test('createEvmExecutor rejects unsupported chain ids', () => {
-  const wallet = createEvmWallet(`0x${'11'.repeat(32)}`);
+test('createEvmExecutor rejects unsupported chain ids', (t) => {
+  const tempDir = mkdtempSync(join(tmpdir(), 'allset-sdk-evm-'));
+  t.after(() => rmSync(tempDir, { recursive: true, force: true }));
+
+  const keyfile = join(tempDir, 'wallet.json');
+  writeFileSync(keyfile, JSON.stringify({ privateKey: '11'.repeat(32) }));
+
+  const account = createEvmWallet(keyfile);
   assert.throws(
-    () => createEvmExecutor(wallet, 'http://localhost:8545', 1),
+    () => createEvmExecutor(account, 'http://localhost:8545', 1),
     /Unsupported EVM chain ID/,
   );
 });
 
-test('createEvmExecutor accepts raw private key string', () => {
-  const privateKey = `0x${'22'.repeat(32)}` as const;
-  
-  // Should not throw when passing private key directly
-  const executor = createEvmExecutor(privateKey, 'http://localhost:8545', 421614);
-  
-  // Verify executor was created with expected interface
-  assert.ok(typeof executor.sendTx === 'function', 'should have sendTx method');
-  assert.ok(typeof executor.checkAllowance === 'function', 'should have checkAllowance method');
-  assert.ok(typeof executor.approveErc20 === 'function', 'should have approveErc20 method');
-});
+test('createEvmExecutor accepts Account from createEvmWallet', (t) => {
+  const tempDir = mkdtempSync(join(tmpdir(), 'allset-sdk-evm-'));
+  t.after(() => rmSync(tempDir, { recursive: true, force: true }));
 
-test('createEvmExecutor accepts EvmWallet object', () => {
-  const wallet = createEvmWallet(`0x${'33'.repeat(32)}`);
-  
-  // Should not throw when passing EvmWallet
-  const executor = createEvmExecutor(wallet, 'http://localhost:8545', 421614);
-  
+  const keyfile = join(tempDir, 'wallet.json');
+  writeFileSync(keyfile, JSON.stringify({ privateKey: '22'.repeat(32) }));
+
+  const account = createEvmWallet(keyfile);
+
+  // Should not throw when passing Account
+  const executor = createEvmExecutor(account, 'http://localhost:8545', 421614);
+
   // Verify executor was created with expected interface
   assert.ok(typeof executor.sendTx === 'function', 'should have sendTx method');
   assert.ok(typeof executor.checkAllowance === 'function', 'should have checkAllowance method');
@@ -384,37 +384,54 @@ test('createEvmExecutor accepts EvmWallet object', () => {
 // EVM Wallet Tests
 // ---------------------------------------------------------------------------
 
-test('createEvmWallet generates valid wallet', () => {
-  const wallet = createEvmWallet();
-  
-  // Check privateKey format
-  assert.ok(wallet.privateKey.startsWith('0x'), 'privateKey should start with 0x');
-  assert.equal(wallet.privateKey.length, 66, 'privateKey should be 66 chars (0x + 64 hex)');
-  
-  // Check address format
-  assert.ok(wallet.address.startsWith('0x'), 'address should start with 0x');
-  assert.equal(wallet.address.length, 42, 'address should be 42 chars (0x + 40 hex)');
-  
-  // Check that two wallets are different
-  const wallet2 = createEvmWallet();
-  assert.notEqual(wallet.privateKey, wallet2.privateKey, 'should generate unique keys');
-  assert.notEqual(wallet.address, wallet2.address, 'should generate unique addresses');
+test('createEvmWallet loads account from keyfile', (t) => {
+  const tempDir = mkdtempSync(join(tmpdir(), 'allset-sdk-evm-'));
+  t.after(() => rmSync(tempDir, { recursive: true, force: true }));
+
+  const privateKey = '33'.repeat(32);
+  const keyfile = join(tempDir, 'wallet.json');
+  writeFileSync(keyfile, JSON.stringify({ privateKey, address: '0xOptionalReference' }));
+
+  const account = createEvmWallet(keyfile);
+
+  // Should return a viem Account
+  assert.ok(account.address.startsWith('0x'), 'address should start with 0x');
+  assert.equal(account.address.length, 42, 'address should be 42 chars');
+  assert.ok(typeof account.signMessage === 'function', 'should have signMessage method');
+  assert.ok(typeof account.signTransaction === 'function', 'should have signTransaction method');
 });
 
-test('createEvmWallet derives address from provided privateKey', () => {
-  // Generate a wallet first
-  const original = createEvmWallet();
-  
-  // Derive from the same private key
-  const derived = createEvmWallet(original.privateKey);
-  
-  // Should produce the same address
-  assert.equal(derived.privateKey, original.privateKey, 'privateKey should match');
-  assert.equal(derived.address, original.address, 'address should match');
-  
-  // Also works without 0x prefix
-  const derivedWithoutPrefix = createEvmWallet(original.privateKey.slice(2));
-  assert.equal(derivedWithoutPrefix.address, original.address, 'address should match without 0x prefix');
+test('createEvmWallet handles 0x-prefixed privateKey in keyfile', (t) => {
+  const tempDir = mkdtempSync(join(tmpdir(), 'allset-sdk-evm-'));
+  t.after(() => rmSync(tempDir, { recursive: true, force: true }));
+
+  const privateKey = `0x${'44'.repeat(32)}`;
+  const keyfile = join(tempDir, 'wallet.json');
+  writeFileSync(keyfile, JSON.stringify({ privateKey }));
+
+  const account = createEvmWallet(keyfile);
+
+  assert.ok(account.address.startsWith('0x'), 'should derive address');
+});
+
+test('createEvmWallet throws for missing keyfile', () => {
+  assert.throws(
+    () => createEvmWallet('/nonexistent/path/wallet.json'),
+    /Wallet file not found/,
+  );
+});
+
+test('createEvmWallet throws for missing privateKey in keyfile', (t) => {
+  const tempDir = mkdtempSync(join(tmpdir(), 'allset-sdk-evm-'));
+  t.after(() => rmSync(tempDir, { recursive: true, force: true }));
+
+  const keyfile = join(tempDir, 'wallet.json');
+  writeFileSync(keyfile, JSON.stringify({ address: '0x123' })); // no privateKey
+
+  assert.throws(
+    () => createEvmWallet(keyfile),
+    /missing privateKey/,
+  );
 });
 
 // ---------------------------------------------------------------------------

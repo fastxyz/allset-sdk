@@ -15,15 +15,15 @@
  * const fastProvider = new FastProvider({ network: 'testnet' });
  * const allset = new AllSetProvider({ network: 'testnet' });
  * const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);
- * const evmWallet = createEvmWallet('~/.allset/.evm/keys/default.json');
+ * const evmAccount = createEvmWallet('~/.evm/keys/default.json'); // returns viem Account
  *
  * // Deposit: EVM → Fast
- * const evmExecutor = createEvmExecutor(evmWallet, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
+ * const evmExecutor = createEvmExecutor(evmAccount, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
  * await allset.sendToFast({
  *   chain: 'arbitrum',
  *   token: 'USDC',
  *   amount: '1000000',
- *   from: evmWallet.address,
+ *   from: evmAccount.address,
  *   to: fastWallet.address,
  *   evmExecutor,
  * });
@@ -34,7 +34,7 @@
  *   token: 'fastUSDC',
  *   amount: '1000000',
  *   from: fastWallet.address,
- *   to: evmWallet.address,
+ *   to: evmAccount.address,
  *   fastWallet,
  * });
  * ```
@@ -90,6 +90,5 @@ export type {
 export type { Intent } from './intents.js';
 
 export type { EvmSignResult } from './bridge.js';
-export type { EvmWallet } from './evm-executor.js';
 export type { NetworkConfig, ChainConfig, TokenConfig, AllNetworksConfig } from './config.js';
 export type { AllSetProviderOptions } from './provider.js';
