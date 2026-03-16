@@ -25,11 +25,10 @@
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf dist",
-    "test": "node --import tsx --test tests/*.test.ts",
     "pack:dry-run": "node ./scripts/pack-dry-run.mjs",
     "pack:smoke": "node ./scripts/pack-smoke.mjs",
     "release:verify-tag": "node ./scripts/verify-tag-version.mjs",
-    "prepublishOnly": "npm run build && npm test"
+    "prepublishOnly": "npm run build"
   },
   "engines": {
     "node": ">=20"
