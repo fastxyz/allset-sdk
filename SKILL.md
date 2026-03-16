@@ -100,6 +100,28 @@ const evmWallet = createEvmWallet(keys.privateKey);
 // Now fastWallet.address and evmWallet.address share the same key
 ```
 
+**Using existing viem account:** If you already have a viem `Account` from `privateKeyToAccount()`, construct an `EvmWallet` directly:
+
+```ts
+import { privateKeyToAccount } from 'viem/accounts';
+
+// Existing viem account from your code
+const privateKey = '0xabc...';
+const account = privateKeyToAccount(privateKey);
+
+// Construct EvmWallet manually
+const evmWallet: EvmWallet = {
+  privateKey,
+  address: account.address,
+  account,
+};
+
+// Use with createEvmExecutor
+const executor = createEvmExecutor(evmWallet, rpcUrl, chainId);
+```
+
+This allows seamless integration with existing viem-based code without re-deriving keys.
+
 ### 4. Use the correct execution path
 
 - **Deposit** requires `evmExecutor` from `createEvmExecutor()`
