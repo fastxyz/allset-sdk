@@ -18,19 +18,23 @@ import { AllSetProvider, createEvmExecutor, createEvmWallet } from '@fastxyz/all
 const fastProvider = new FastProvider({ network: 'testnet' });
 const allset = new AllSetProvider({ network: 'testnet' });
 const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);
-const evmWallet = createEvmWallet('~/.allset/.evm/keys/default.json');
+
+// Create EVM account (3 ways)
+const account = createEvmWallet();                           // Generate new
+const account = createEvmWallet('0xprivateKey...');          // From private key
+const account = createEvmWallet('~/.evm/keys/default.json'); // From keyfile
+
+// Create EVM clients
+const evmClients = createEvmExecutor(account, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
 
 // Deposit: EVM → Fast
-// createEvmExecutor accepts either EvmWallet or raw private key
-const evmExecutor = createEvmExecutor(evmWallet, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
-// Alternative: createEvmExecutor('0xprivateKey...', rpcUrl, chainId);
 await allset.sendToFast({
   chain: 'arbitrum',
   token: 'USDC',
   amount: '1000000',
-  from: evmWallet.address,
+  from: account.address,
   to: fastWallet.address,
-  evmExecutor,
+  evmClients,
 });
 
 // Withdraw: Fast → EVM
@@ -39,10 +43,43 @@ await allset.sendToExternal({
   token: 'fastUSDC',
   amount: '1000000',
   from: fastWallet.address,
-  to: evmWallet.address,
+  to: account.address,
   fastWallet,
 });
 ```
+
+## createEvmWallet
+
+Returns a viem `Account` object.
+
+```ts
+// Generate new wallet
+const account = createEvmWallet();
+
+// Derive from private key
+const account = createEvmWallet('0x1234...64hexchars');
+
+// Load from keyfile
+const account = createEvmWallet('~/.evm/keys/default.json');
+```
+
+**Keyfile format:**
+```json
+{
+  "privateKey": "abc123...64hexchars",
+  "address": "0x..." // optional, for reference
+}
+```
+
+## createEvmExecutor
+
+Returns `{ walletClient, publicClient }` for EVM operations.
+
+```ts
+const { walletClient, publicClient } = createEvmExecutor(account, rpcUrl, chainId);
+```
+
+Only accepts viem `Account` — use `createEvmWallet()` or viem's `privateKeyToAccount()`.
 
 ## Advanced: Custom Intents
 
@@ -61,8 +98,6 @@ await allset.executeIntent({
   ],
 });
 ```
-
-For intents without a transfer recipient or execute target, pass `externalAddress` so the relayer has an explicit EVM target.
 
 ## Supported Networks
 

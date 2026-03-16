@@ -2,7 +2,7 @@
  * evm-executor.ts — EVM client utilities using viem
  *
  * Provides createEvmExecutor() to create viem wallet and public clients,
- * and createEvmWallet() to load EVM wallets from keyfiles.
+ * and createEvmWallet() to generate or load EVM wallets.
  *
  * Wallet keyfiles are managed by the user at ~/.evm/keys/ or custom paths.
  * Expected format: { "privateKey": "...", "address": "..." (optional) }
@@ -20,7 +20,7 @@ import {
   type PublicClient,
   type WalletClient,
 } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { arbitrumSepolia, sepolia } from 'viem/chains';
 
 // Default EVM keys directory
@@ -49,27 +49,42 @@ function expandPath(path: string): string {
 }
 
 /**
- * Load an EVM wallet from a keyfile and return a viem Account.
+ * Detect if a string is a file path (vs a private key)
+ */
+function isFilePath(input: string): boolean {
+  return input.includes('/') || input.startsWith('~') || input.endsWith('.json');
+}
+
+/**
+ * Create or load an EVM wallet and return a viem Account.
+ *
+ * @param keyOrPath - Optional. Can be:
+ *   - Omitted: generates a new random wallet
+ *   - Private key (64 hex chars, with or without 0x): derives account from it
+ *   - File path (contains `/` or `~`, or ends with `.json`): loads from JSON keyfile
  *
  * The keyfile must be a JSON file containing:
  * - `privateKey` (required): hex string, with or without 0x prefix
  * - `address` (optional): for user reference only
  *
- * It is the user's responsibility to create and manage the keyfile.
+ * It is the user's responsibility to create and manage keyfiles.
  *
- * @param path - Path to the keyfile (supports ~ expansion)
  * @returns viem Account object
  *
  * @example
  * ```ts
+ * // Generate new wallet
+ * const account = createEvmWallet();
+ * console.log(account.address); // 0x...
+ * 
+ * // Derive from private key
+ * const account = createEvmWallet('0x1234...64hexchars');
+ * 
  * // Load from keyfile
  * const account = createEvmWallet('~/.evm/keys/default.json');
  * 
  * // Use with createEvmExecutor
  * const { walletClient, publicClient } = createEvmExecutor(account, rpcUrl, chainId);
- * 
- * // Access address
- * console.log(account.address);
  * ```
  *
  * @example Keyfile format
@@ -80,17 +95,29 @@ function expandPath(path: string): string {
  * }
  * ```
  */
-export function createEvmWallet(path: string): Account {
-  const fullPath = expandPath(path);
-  if (!existsSync(fullPath)) {
-    throw new Error(`Wallet file not found: ${path}`);
+export function createEvmWallet(keyOrPath?: string): Account {
+  let key: `0x${string}`;
+
+  if (!keyOrPath) {
+    // Generate new wallet
+    key = generatePrivateKey();
+  } else if (isFilePath(keyOrPath)) {
+    // Load from file
+    const fullPath = expandPath(keyOrPath);
+    if (!existsSync(fullPath)) {
+      throw new Error(`Wallet file not found: ${keyOrPath}`);
+    }
+    const content = readFileSync(fullPath, 'utf-8');
+    const data = JSON.parse(content) as { privateKey: string; address?: string };
+    if (!data.privateKey) {
+      throw new Error(`Invalid wallet file: missing privateKey`);
+    }
+    key = (data.privateKey.startsWith('0x') ? data.privateKey : `0x${data.privateKey}`) as `0x${string}`;
+  } else {
+    // Treat as private key
+    key = (keyOrPath.startsWith('0x') ? keyOrPath : `0x${keyOrPath}`) as `0x${string}`;
   }
-  const content = readFileSync(fullPath, 'utf-8');
-  const data = JSON.parse(content) as { privateKey: string; address?: string };
-  if (!data.privateKey) {
-    throw new Error(`Invalid wallet file: missing privateKey`);
-  }
-  const key = (data.privateKey.startsWith('0x') ? data.privateKey : `0x${data.privateKey}`) as `0x${string}`;
+
   return privateKeyToAccount(key);
 }
 

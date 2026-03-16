@@ -393,6 +393,36 @@ test('createEvmExecutor returns walletClient and publicClient', (t) => {
 // EVM Wallet Tests
 // ---------------------------------------------------------------------------
 
+test('createEvmWallet generates new wallet when no args', () => {
+  const account = createEvmWallet();
+  
+  // Should return a viem Account
+  assert.ok(account.address.startsWith('0x'), 'address should start with 0x');
+  assert.equal(account.address.length, 42, 'address should be 42 chars');
+  assert.ok(typeof account.signMessage === 'function', 'should have signMessage method');
+  
+  // Two calls should generate different wallets
+  const account2 = createEvmWallet();
+  assert.notEqual(account.address, account2.address, 'should generate unique addresses');
+});
+
+test('createEvmWallet derives account from private key', () => {
+  const privateKey = `0x${'55'.repeat(32)}`;
+  const account = createEvmWallet(privateKey);
+  
+  // Should return a viem Account with derived address
+  assert.ok(account.address.startsWith('0x'), 'address should start with 0x');
+  assert.equal(account.address.length, 42, 'address should be 42 chars');
+  
+  // Same key should produce same address
+  const account2 = createEvmWallet(privateKey);
+  assert.equal(account.address, account2.address, 'same key should produce same address');
+  
+  // Also works without 0x prefix
+  const account3 = createEvmWallet('55'.repeat(32));
+  assert.equal(account.address, account3.address, 'should work without 0x prefix');
+});
+
 test('createEvmWallet loads account from keyfile', (t) => {
   const tempDir = mkdtempSync(join(tmpdir(), 'allset-sdk-evm-'));
   t.after(() => rmSync(tempDir, { recursive: true, force: true }));

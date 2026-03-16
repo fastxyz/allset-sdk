@@ -6,7 +6,7 @@ description: >
   use sendToExternal for withdrawals (Fast→EVM), use executeIntent for advanced custom operations,
   or debug bridge errors such as TOKEN_NOT_FOUND, INVALID_ADDRESS, INVALID_PARAMS, UNSUPPORTED_OPERATION.
 metadata:
-  version: 0.1.2
+  version: 0.1.3
 ---
 
 # AllSet SDK
@@ -33,9 +33,8 @@ npm install @fastxyz/sdk @fastxyz/allset-sdk
 - `buildRevokeIntent()` — Cancel pending intent
 
 **Utilities:**
-- `createEvmExecutor(walletOrKey, rpcUrl, chainId)` — EVM transaction executor (accepts `EvmWallet` or raw private key)
-- `createEvmWallet(keyOrPath?)` — Generate/load EVM wallet
-- `saveEvmWallet(wallet, path)` — Save wallet to file
+- `createEvmWallet(keyOrPath?)` — Generate, derive, or load EVM account
+- `createEvmExecutor(account, rpcUrl, chainId)` — Create viem clients for EVM operations
 
 ## Workflow
 
@@ -72,71 +71,63 @@ const allset = new AllSetProvider({ configPath: './my-networks.json' });
 2. `~/.allset/networks.json` (user override)
 3. Bundled `data/networks.json` (package default)
 
-### 3. (Optional) Setting up EVM Wallet
+### 3. Setting up EVM Wallet
 
-If you need to manage EVM wallets, the SDK provides utilities. The `createEvmWallet()` function returns an `EvmWallet` with a pre-derived `account` object, avoiding repeated key derivation when creating executors.
+The `createEvmWallet()` function returns a viem `Account` object.
 
 ```ts
-import { createEvmWallet, saveEvmWallet } from '@fastxyz/allset-sdk';
+import { createEvmWallet } from '@fastxyz/allset-sdk';
 
 // Generate new wallet
-const wallet = createEvmWallet();
+const account = createEvmWallet();
 
-// Load from file
-const wallet = createEvmWallet('~/.allset/.evm/keys/default.json');
+// Derive from private key
+const account = createEvmWallet('0x1234...64hexchars');
 
-// Derive from existing private key
-const wallet = createEvmWallet('0x1234...privateKey...');
+// Load from keyfile
+const account = createEvmWallet('~/.evm/keys/default.json');
 
-// Save wallet for later use
-saveEvmWallet(wallet, '~/.allset/.evm/keys/default.json');
+// Access the address
+console.log(account.address); // 0x...
 ```
 
-**Same-key pattern:** Use the same private key for both Fast and EVM:
-
-```ts
-const keys = await fastWallet.exportKeys();
-const evmWallet = createEvmWallet(keys.privateKey);
-// Now fastWallet.address and evmWallet.address share the same key
+**Keyfile format:**
+```json
+{
+  "privateKey": "abc123...64hexchars",
+  "address": "0x..." // optional, for reference
+}
 ```
 
-**Using existing viem account:** If you already have a viem `Account` from `privateKeyToAccount()`, construct an `EvmWallet` directly:
+It is the user's responsibility to create and manage keyfiles.
+
+**Using viem directly:** You can also use viem's `privateKeyToAccount()`:
 
 ```ts
 import { privateKeyToAccount } from 'viem/accounts';
-
-// Existing viem account from your code
-const privateKey = '0xabc...';
-const account = privateKeyToAccount(privateKey);
-
-// Construct EvmWallet manually
-const evmWallet: EvmWallet = {
-  privateKey,
-  address: account.address,
-  account,
-};
-
-// Use with createEvmExecutor
-const executor = createEvmExecutor(evmWallet, rpcUrl, chainId);
+const account = privateKeyToAccount('0xabc...');
 ```
 
-This allows seamless integration with existing viem-based code without re-deriving keys.
+### 4. Setting up EVM Executor
 
-### 4. Use the correct execution path
+The `createEvmExecutor()` function returns `{ walletClient, publicClient }` for EVM operations.
 
-- **Deposit** requires `evmExecutor` from `createEvmExecutor()`
+```ts
+import { createEvmExecutor, createEvmWallet } from '@fastxyz/allset-sdk';
+
+const account = createEvmWallet('~/.evm/keys/default.json');
+const evmClients = createEvmExecutor(account, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
+
+// evmClients contains { walletClient, publicClient }
+```
+
+**Important:** `createEvmExecutor` only accepts viem `Account` objects. Use `createEvmWallet()` or `privateKeyToAccount()` to get an Account.
+
+### 5. Use the correct execution path
+
+- **Deposit** requires `evmClients` from `createEvmExecutor()`
 - **Withdrawal** requires `fastWallet` from `@fastxyz/sdk`
 - **Advanced intents** require `fastWallet` + array of `Intent` objects
-
-> **See the [Examples](#examples) section below for complete code samples of each execution path.**
-
-### 5. Respect implementation details
-
-- Network/chain/token config is in `data/networks.json`
-- Token resolution handles `fastUSDC` → `USDC` normalization
-- The package throws `FastError` from `@fastxyz/sdk`
-
-Do not invent additional token aliases, chain IDs, or mainnet support unless added to config.
 
 ### 6. Validate after edits
 
@@ -151,11 +142,12 @@ If you change code in this repo:
 ## Directory Structure
 
 ```
+~/.evm/
+└── keys/
+    └── default.json   # EVM wallet keyfiles (user-managed)
+
 ~/.allset/
-├── networks.json          # Custom network config (overrides bundled)
-└── .evm/
-    └── keys/
-        └── default.json   # EVM wallet keyfiles
+└── networks.json      # Custom network config (overrides bundled)
 ```
 
 ## Current Support Matrix
@@ -165,6 +157,37 @@ If you change code in this repo:
 - Tokens: USDC, fastUSDC
 
 ## API Reference
+
+### createEvmWallet
+
+Create or load an EVM account.
+
+```ts
+function createEvmWallet(keyOrPath?: string): Account
+```
+
+**Parameters:**
+- `keyOrPath` (optional):
+  - Omitted: generates new random wallet
+  - Private key string (64 hex chars, with/without 0x): derives account
+  - File path (contains `/`, `~`, or ends with `.json`): loads from keyfile
+
+**Returns:** viem `Account` object
+
+### createEvmExecutor
+
+Create viem clients for EVM operations.
+
+```ts
+function createEvmExecutor(account: Account, rpcUrl: string, chainId: number): EvmClients
+```
+
+**Parameters:**
+- `account` — viem Account from `createEvmWallet()` or `privateKeyToAccount()`
+- `rpcUrl` — RPC endpoint URL
+- `chainId` — Chain ID (11155111 for Sepolia, 421614 for Arbitrum Sepolia)
+
+**Returns:** `{ walletClient, publicClient }`
 
 ### AllSetProvider
 
@@ -199,9 +222,9 @@ await allset.sendToFast({
   chain: 'arbitrum',           // EVM chain
   token: 'USDC',               // Token symbol
   amount: '1000000',           // Amount (smallest units)
-  from: '0xEvmAddress',        // Sender EVM address
+  from: account.address,       // Sender EVM address
   to: 'fast1ReceiverAddress',  // Receiver Fast address
-  evmExecutor,                 // From createEvmExecutor()
+  evmClients,                  // From createEvmExecutor()
 });
 ```
 
@@ -215,19 +238,18 @@ await allset.sendToExternal({
   token: 'fastUSDC',           // Token symbol
   amount: '1000000',           // Amount (smallest units)
   from: fastWallet.address,    // Sender Fast address
-  to: '0xEvmAddress',          // Receiver EVM address
+  to: account.address,         // Receiver EVM address
   fastWallet,                  // From @fastxyz/sdk
 });
 ```
 
 ### executeIntent(params)
 
-Execute custom intents on EVM chain. This is the advanced API for composing operations like swaps, multi-step transactions, or protocol integrations.
+Execute custom intents on EVM chain.
 
 ```ts
 import { buildTransferIntent, buildExecuteIntent } from '@fastxyz/allset-sdk';
 
-// Simple transfer (equivalent to sendToExternal)
 await allset.executeIntent({
   chain: 'arbitrum',
   fastWallet,
@@ -235,30 +257,7 @@ await allset.executeIntent({
   amount: '1000000',
   intents: [buildTransferIntent(USDC_ADDRESS, '0xRecipient')],
 });
-
-// Custom contract call
-await allset.executeIntent({
-  chain: 'arbitrum',
-  fastWallet,
-  token: 'fastUSDC',
-  amount: '1000000',
-  intents: [buildExecuteIntent(CONTRACT_ADDRESS, encodedCalldata)],
-  externalAddress: CONTRACT_ADDRESS,
-  deadlineSeconds: 7200,  // Optional: 2 hours (default: 1 hour)
-});
 ```
-
-**Parameters:**
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `chain` | `string` | Yes | EVM chain: `'ethereum'` or `'arbitrum'` |
-| `fastWallet` | `FastWallet` | Yes | From `@fastxyz/sdk` |
-| `token` | `string` | Yes | Token to transfer to bridge |
-| `amount` | `string` | Yes | Amount in smallest units |
-| `intents` | `Intent[]` | Yes | Array of intents to execute |
-| `externalAddress` | `string` | No* | Required when intents do not include a transfer recipient or execute target |
-| `deadlineSeconds` | `number` | No | Deadline (default: 3600) |
 
 ## Intent Builders
 
@@ -312,82 +311,25 @@ Build intent to cancel/revoke pending operations.
 const intent = buildRevokeIntent();
 ```
 
-## Intent Action Types
-
-```ts
-enum IntentAction {
-  Execute = 0,         // Generic contract call
-  DynamicTransfer = 1, // ERC-20 transfer
-  DynamicDeposit = 2,  // Deposit back to Fast
-  Revoke = 3,          // Cancel intent
-}
-```
-
 ## Examples
 
-### createEvmExecutor — Two Patterns
-
-The executor accepts either an `EvmWallet` object or a raw private key string:
+### Deposit to Fast
 
 ```ts
-import { createEvmExecutor, createEvmWallet } from '@fastxyz/allset-sdk';
-
-// Pattern 1: Using EvmWallet (recommended when reusing wallet)
-const wallet = createEvmWallet('~/.allset/.evm/keys/default.json');
-const executor = createEvmExecutor(wallet, RPC_URL, CHAIN_ID);
-
-// Pattern 2: Using raw private key (quick start, backward compatible)
-const executor = createEvmExecutor('0xabc123...privateKey', RPC_URL, CHAIN_ID);
-```
-
-**When to use each:**
-
-| Pattern | Use Case |
-|---------|----------|
-| `EvmWallet` | When you need to reference `wallet.address`, save/load wallets, or reuse across multiple executors |
-| Private key | Quick scripts, one-off transactions, or when you already have the key as a string |
-
-### Deposit to your own Fast address
-
-```ts
-// Using EvmWallet
-const evmExecutor = createEvmExecutor(
-  evmWallet,
-  'https://sepolia-rollup.arbitrum.io/rpc',
-  421614,
-);
-
-// Or using raw private key
-const evmExecutor = createEvmExecutor(
-  '0x1234...privateKey',
-  'https://sepolia-rollup.arbitrum.io/rpc',
-  421614,
-);
+const account = createEvmWallet('~/.evm/keys/default.json');
+const evmClients = createEvmExecutor(account, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
 
 await allset.sendToFast({
   chain: 'arbitrum',
   token: 'USDC',
   amount: '1000000',
-  from: evmWallet.address,  // or derive: privateKeyToAccount(key).address
+  from: account.address,
   to: fastWallet.address,
-  evmExecutor,
+  evmClients,
 });
 ```
 
-### Deposit to a different Fast address
-
-```ts
-await allset.sendToFast({
-  chain: 'arbitrum',
-  token: 'USDC',
-  amount: '1000000',
-  from: evmWallet.address,
-  to: 'fast1recipientaddress',  // Different receiver
-  evmExecutor,
-});
-```
-
-### Withdraw to your own EVM address
+### Withdraw to EVM
 
 ```ts
 await allset.sendToExternal({
@@ -395,29 +337,24 @@ await allset.sendToExternal({
   token: 'fastUSDC',
   amount: '1000000',
   from: fastWallet.address,
-  to: evmWallet.address,
+  to: account.address,
   fastWallet,
 });
 ```
 
-### Withdraw to a different EVM address
+### Generate new wallet
 
 ```ts
-await allset.sendToExternal({
-  chain: 'arbitrum',
-  token: 'fastUSDC',
-  amount: '1000000',
-  from: fastWallet.address,
-  to: '0xRecipientAddress',  // Different receiver
-  fastWallet,
-});
+const account = createEvmWallet();
+console.log('New address:', account.address);
+// Save the private key yourself if needed
 ```
 
 ## Troubleshooting
 
 ### `INVALID_PARAMS`
 
-- `sendToFast`: Missing `evmExecutor`
+- `sendToFast`: Missing `evmClients`
 - `sendToExternal`: Missing `fastWallet`
 - `executeIntent`: Missing `fastWallet` or empty `intents`
 
@@ -446,6 +383,7 @@ await allset.sendToExternal({
 - `src/index.ts` — Public exports
 - `src/provider.ts` — AllSetProvider class
 - `src/bridge.ts` — Bridge logic, executeIntent
+- `src/evm-executor.ts` — EVM wallet and client utilities
 - `src/intents.ts` — Intent builders
 - `src/types.ts` — Type definitions
 - `data/networks.json` — Network configuration
@@ -455,4 +393,5 @@ await allset.sendToExternal({
 - "Deposit USDC from Arbitrum to Fast" → `sendToFast`
 - "Withdraw fastUSDC to Arbitrum" → `sendToExternal`
 - "Execute custom intent" → `executeIntent`
-- "Build a swap intent" → `buildExecuteIntent` with swap calldata
+- "Generate new EVM wallet" → `createEvmWallet()`
+- "Load wallet from keyfile" → `createEvmWallet(path)`

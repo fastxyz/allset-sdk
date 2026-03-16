@@ -15,15 +15,19 @@
  * const fastProvider = new FastProvider({ network: 'testnet' });
  * const allset = new AllSetProvider({ network: 'testnet' });
  * const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);
- * const evmAccount = createEvmWallet('~/.evm/keys/default.json'); // returns viem Account
+ *
+ * // Create EVM account (3 ways)
+ * const account = createEvmWallet();                           // Generate new
+ * const account = createEvmWallet('0xprivateKey...');          // From private key
+ * const account = createEvmWallet('~/.evm/keys/default.json'); // From keyfile
  *
  * // Deposit: EVM → Fast
- * const evmClients = createEvmExecutor(evmAccount, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
+ * const evmClients = createEvmExecutor(account, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
  * await allset.sendToFast({
  *   chain: 'arbitrum',
  *   token: 'USDC',
  *   amount: '1000000',
- *   from: evmAccount.address,
+ *   from: account.address,
  *   to: fastWallet.address,
  *   evmClients,
  * });
@@ -34,7 +38,7 @@
  *   token: 'fastUSDC',
  *   amount: '1000000',
  *   from: fastWallet.address,
- *   to: evmAccount.address,
+ *   to: account.address,
  *   fastWallet,
  * });
  * ```
