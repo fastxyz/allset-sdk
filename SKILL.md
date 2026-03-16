@@ -342,14 +342,6 @@ await allset.sendToExternal({
 });
 ```
 
-### Generate new wallet
-
-```ts
-const account = createEvmWallet();
-console.log('New address:', account.address);
-// Save the private key yourself if needed
-```
-
 ## Troubleshooting
 
 ### `INVALID_PARAMS`
