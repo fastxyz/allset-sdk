@@ -2,14 +2,14 @@
  * evm-executor.ts — Minimal EVM transaction executor using viem
  *
  * Provides sendTx, checkAllowance, and approveErc20 for bridge operations.
- * Also provides createEvmWallet() to generate, derive, or load EVM wallets,
- * and saveEvmWallet() to persist them to disk.
+ * Also provides createEvmWallet() to load EVM wallets from keyfiles.
  *
- * Default wallet path: ~/.allset/.evm/keys/
+ * Wallet keyfiles are managed by the user at ~/.evm/keys/ or custom paths.
+ * Expected format: { "privateKey": "...", "address": "..." (optional) }
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   createPublicClient,
   createWalletClient,
@@ -127,39 +127,6 @@ export function createEvmWallet(keyOrPath?: string): EvmWallet {
     address: account.address,
     account,
   };
-}
-
-/**
- * Save an EVM wallet to a JSON file.
- *
- * Creates parent directories if they don't exist.
- * The file format matches Fast wallet keyfiles for consistency.
- * Only saves privateKey and address (account is derived at load time).
- *
- * @param wallet - The wallet object with privateKey and address
- * @param path - File path to save to (supports ~ expansion)
- *
- * @example
- * ```ts
- * const wallet = createEvmWallet();
- * saveEvmWallet(wallet, '~/.allset/.evm/keys/default.json');
- * ```
- */
-export function saveEvmWallet(wallet: EvmWallet, path: string): void {
-  const fullPath = expandPath(path);
-  const dir = dirname(fullPath);
-  
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true, mode: 0o700 });
-  }
-
-  // Only save privateKey and address (account is runtime-only)
-  const data = {
-    privateKey: wallet.privateKey.replace('0x', ''), // Store without 0x prefix like Fast wallet
-    address: wallet.address,
-  };
-
-  writeFileSync(fullPath, JSON.stringify(data, null, 2) + '\n', { mode: 0o600 });
 }
 
 const ERC20_ABI = parseAbi([
