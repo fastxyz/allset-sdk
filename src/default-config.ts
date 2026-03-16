@@ -1,6 +1,6 @@
 import type { AllNetworksConfig } from './config.js';
 
-// Keep this embedded default config in sync with the shipped network support matrix.
+// Single source of truth for the SDK's bundled default network support matrix.
 export const DEFAULT_NETWORKS_CONFIG = {
   testnet: {
     crossSignUrl: 'https://testnet.cross-sign.allset.fast.xyz',

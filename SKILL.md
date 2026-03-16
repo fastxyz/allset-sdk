@@ -16,7 +16,13 @@ Use this skill for work in this repository or in another codebase that needs to 
 ## Prerequisites
 
 ```bash
-npm install @fastxyz/sdk @fastxyz/allset-sdk
+npm install @fastxyz/allset-sdk
+```
+
+For the Node bridge runtime APIs (`AllSetProvider`, `sendToFast`, `sendToExternal`, `executeIntent`, `evmSign`), also install:
+
+```bash
+npm install @fastxyz/sdk
 ```
 
 ## What This SDK Does
@@ -54,7 +60,7 @@ Do not start coding until you confirm the requested chain, token, and direction 
 ### 2. Setting up AllSetProvider
 
 ```ts
-import { AllSetProvider } from '@fastxyz/allset-sdk';
+import { AllSetProvider } from '@fastxyz/allset-sdk/node';
 
 // Default testnet
 const allset = new AllSetProvider();
@@ -70,14 +76,14 @@ const allset = new AllSetProvider({ configPath: './my-networks.json' });
 
 1. Custom path (if `configPath` provided)
 2. `~/.allset/networks.json` (user override)
-3. Bundled `data/networks.json` (package default)
+3. Embedded package defaults from `src/default-config.ts`
 
 ### 3. (Optional) Setting up EVM Wallet
 
 If you need to manage EVM wallets, the SDK provides utilities. This is optional — you can also pass a private key directly to `createEvmExecutor()`.
 
 ```ts
-import { createEvmWallet, saveEvmWallet } from '@fastxyz/allset-sdk';
+import { createEvmWallet, saveEvmWallet } from '@fastxyz/allset-sdk/node';
 
 // Generate new wallet
 const wallet = createEvmWallet();
@@ -110,7 +116,7 @@ const evmWallet = createEvmWallet(keys.privateKey);
 
 ### 5. Respect implementation details
 
-- Network/chain/token config is in `data/networks.json`
+- Network/chain/token defaults are in `src/default-config.ts`
 - Token resolution handles `fastUSDC` → `USDC` normalization
 - The package throws `FastError` from `@fastxyz/sdk`
 
@@ -130,7 +136,7 @@ If you change code in this repo:
 
 ```
 ~/.allset/
-├── networks.json          # Custom network config (overrides bundled)
+├── networks.json          # Custom network config (overrides embedded defaults)
 └── .evm/
     └── keys/
         └── default.json   # EVM wallet keyfiles
@@ -376,7 +382,7 @@ await allset.sendToExternal({
 
 ### `TOKEN_NOT_FOUND`
 
-- Token not configured in `data/networks.json`
+- Token not configured in `src/default-config.ts` or the active custom config
 - Supported: USDC, fastUSDC
 
 ### `UNSUPPORTED_OPERATION`
@@ -391,12 +397,13 @@ await allset.sendToExternal({
 
 ## Files To Read
 
-- `src/index.ts` — Public exports
+- `src/index.ts` — Pure helper exports
+- `src/node/index.ts` — Node runtime exports
 - `src/provider.ts` — AllSetProvider class
 - `src/bridge.ts` — Bridge logic, executeIntent
 - `src/intents.ts` — Intent builders
 - `src/types.ts` — Type definitions
-- `data/networks.json` — Network configuration
+- `src/default-config.ts` — Bundled default network configuration
 
 ## Common Requests
 

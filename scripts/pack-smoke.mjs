@@ -38,7 +38,7 @@ try {
     'utf8',
   );
 
-  execFileSync(npmCmd, ['install', tarballPath, '@fastxyz/sdk'], {
+  execFileSync(npmCmd, ['install', tarballPath], {
     cwd: tempDir,
     env: npmEnv,
     stdio: 'inherit',
@@ -66,7 +66,7 @@ try {
     [
       '--input-type=module',
       '--eval',
-      `const root = await import(${JSON.stringify(manifest.name)}); const core = await import(${JSON.stringify(`${manifest.name}/core`)}); const browser = await import(${JSON.stringify(`${manifest.name}/browser`)}); const node = await import(${JSON.stringify(`${manifest.name}/node`)}); if (typeof root.buildDepositTransaction !== "function") throw new Error("root buildDepositTransaction export missing"); if (typeof core.resolveDepositRoute !== "function") throw new Error("core resolveDepositRoute export missing"); if (typeof browser.buildTransferIntent !== "function") throw new Error("browser buildTransferIntent export missing"); if ("AllSetProvider" in root) throw new Error("root should not export AllSetProvider"); if ("createEvmExecutor" in browser) throw new Error("browser should not export createEvmExecutor"); const allset = new node.AllSetProvider(); if (typeof allset?.sendToFast !== "function") throw new Error("node AllSetProvider sendToFast missing"); if (typeof node.createEvmExecutor !== "function") throw new Error("node createEvmExecutor export missing");`,
+      `const root = await import(${JSON.stringify(manifest.name)}); const core = await import(${JSON.stringify(`${manifest.name}/core`)}); const browser = await import(${JSON.stringify(`${manifest.name}/browser`)}); const node = await import(${JSON.stringify(`${manifest.name}/node`)}); if (typeof root.buildDepositTransaction !== "function") throw new Error("root buildDepositTransaction export missing"); if (typeof core.resolveDepositRoute !== "function") throw new Error("core resolveDepositRoute export missing"); if (typeof browser.buildTransferIntent !== "function") throw new Error("browser buildTransferIntent export missing"); if ("AllSetProvider" in root) throw new Error("root should not export AllSetProvider"); if ("createEvmExecutor" in browser) throw new Error("browser should not export createEvmExecutor"); const allset = new node.AllSetProvider(); if (typeof allset?.sendToFast !== "function") throw new Error("node AllSetProvider sendToFast missing"); if (typeof node.createEvmExecutor !== "function") throw new Error("node createEvmExecutor export missing"); if (typeof node.evmSign !== "function") throw new Error("node evmSign export missing");`,
     ],
     {
       cwd: tempDir,
