@@ -4,7 +4,7 @@
     "chains": {
       "ethereum": {
         "chainId": 11155111,
-        "bridgeContract": "0x96A2a48Eb19144b01a23ec5B52085D848e1344F5",
+        "bridgeContract": "0xE8159E64c9873e658758A72a07f3DDA50C2ec433",
         "fastBridgeAddress": "fast1fxtkgpwcy7hnakw96gg7relph4wxx7ghrukm723p3l9adxuxljzsc6f958",
         "relayerUrl": "https://testnet.allset.fast.xyz/ethereum-sepolia/relayer/relay",
         "tokens": {
@@ -17,7 +17,7 @@
       },
       "arbitrum": {
         "chainId": 421614,
-        "bridgeContract": "0x00d6aE842Bb6e13457b241e69d542560EdDAF224",
+        "bridgeContract": "0x1B296f9160bFB2Fa15f3F8A0567FD060dC95C4b4",
         "fastBridgeAddress": "fast1tkmtqxulhnzeeg9zhuwxy3x95wr7waytm9cq40ndf7tkuwwcc6jseg24j8",
         "relayerUrl": "https://testnet.allset.fast.xyz/arbitrum-sepolia/relayer/relay",
         "tokens": {
