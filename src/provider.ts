@@ -202,7 +202,7 @@ export class AllSetProvider {
    *   amount: '1000000',
    *   from: '0xYourEvmAddress',
    *   to: 'fast1receiveraddress',
-   *   evmExecutor,
+   *   evmClients,
    * });
    * ```
    */
@@ -217,7 +217,7 @@ export class AllSetProvider {
       amount: params.amount,
       senderAddress: params.from,
       receiverAddress: params.to,
-      evmExecutor: params.evmExecutor,
+      evmClients: params.evmClients,
     }, this);
   }
 

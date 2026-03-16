@@ -100,13 +100,17 @@ test('AllSetProvider configPath drives sendToFast execution', async (t) => {
   const allset = new AllSetProvider({ network: 'testnet', configPath });
   let sentTx: { to: string; data: string; value: string } | undefined;
 
-  const mockExecutor = {
-    sendTx: async (tx: { to: string; data: string; value: string }) => {
-      sentTx = tx;
-      return { txHash: '0xcustom', status: 'success' as const };
+  const mockClients = {
+    walletClient: {
+      sendTransaction: async (tx: { to: string; data: string; value: bigint }) => {
+        sentTx = { to: tx.to, data: tx.data, value: tx.value.toString() };
+        return '0xcustom';
+      },
     },
-    checkAllowance: async () => 1_000_000n,
-    approveErc20: async () => '0xapprove',
+    publicClient: {
+      waitForTransactionReceipt: async () => ({ status: 'success' }),
+      readContract: async () => 1_000_000n,
+    },
   };
 
   const result = await allset.sendToFast({
@@ -115,7 +119,7 @@ test('AllSetProvider configPath drives sendToFast execution', async (t) => {
     amount: '1000000',
     from: EVM_ADDRESS,
     to: FAST_ADDRESS,
-    evmExecutor: mockExecutor,
+    evmClients: mockClients as any,
   });
 
   assert.equal(result.txHash, '0xcustom');
@@ -127,7 +131,7 @@ test('AllSetProvider configPath drives sendToFast execution', async (t) => {
 // sendToFast Tests
 // ---------------------------------------------------------------------------
 
-test('sendToFast without evmExecutor is rejected', async () => {
+test('sendToFast without evmClients is rejected', async () => {
   const allset = new AllSetProvider({ network: 'testnet' });
   
   await assert.rejects(
@@ -137,7 +141,7 @@ test('sendToFast without evmExecutor is rejected', async () => {
       amount: '1000000',
       from: '0xsender',
       to: 'fast1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq0l98cr',
-      evmExecutor: undefined as any,
+      evmClients: undefined as any,
     }),
     (error: unknown) => {
       assert.equal((error as { code?: string }).code, 'INVALID_PARAMS');
@@ -149,10 +153,14 @@ test('sendToFast without evmExecutor is rejected', async () => {
 test('sendToFast with unsupported chain is rejected', async () => {
   const allset = new AllSetProvider({ network: 'testnet' });
   
-  const mockExecutor = {
-    sendTx: async () => ({ txHash: '0x123', status: 'success' as const }),
-    checkAllowance: async () => BigInt(0),
-    approveErc20: async () => '0x123',
+  const mockClients = {
+    walletClient: {
+      sendTransaction: async () => '0x123',
+    },
+    publicClient: {
+      waitForTransactionReceipt: async () => ({ status: 'success' }),
+      readContract: async () => 0n,
+    },
   };
   
   await assert.rejects(
@@ -162,7 +170,7 @@ test('sendToFast with unsupported chain is rejected', async () => {
       amount: '1000000',
       from: '0xsender',
       to: 'fast1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq0l98cr',
-      evmExecutor: mockExecutor,
+      evmClients: mockClients as any,
     }),
     (error: unknown) => {
       assert.equal((error as { code?: string }).code, 'UNSUPPORTED_OPERATION');
@@ -362,7 +370,7 @@ test('createEvmExecutor rejects unsupported chain ids', (t) => {
   );
 });
 
-test('createEvmExecutor accepts Account from createEvmWallet', (t) => {
+test('createEvmExecutor returns walletClient and publicClient', (t) => {
   const tempDir = mkdtempSync(join(tmpdir(), 'allset-sdk-evm-'));
   t.after(() => rmSync(tempDir, { recursive: true, force: true }));
 
@@ -372,12 +380,13 @@ test('createEvmExecutor accepts Account from createEvmWallet', (t) => {
   const account = createEvmWallet(keyfile);
 
   // Should not throw when passing Account
-  const executor = createEvmExecutor(account, 'http://localhost:8545', 421614);
+  const clients = createEvmExecutor(account, 'http://localhost:8545', 421614);
 
-  // Verify executor was created with expected interface
-  assert.ok(typeof executor.sendTx === 'function', 'should have sendTx method');
-  assert.ok(typeof executor.checkAllowance === 'function', 'should have checkAllowance method');
-  assert.ok(typeof executor.approveErc20 === 'function', 'should have approveErc20 method');
+  // Verify clients were created
+  assert.ok(clients.walletClient, 'should have walletClient');
+  assert.ok(clients.publicClient, 'should have publicClient');
+  assert.ok(typeof clients.walletClient.sendTransaction === 'function', 'walletClient should have sendTransaction');
+  assert.ok(typeof clients.publicClient.readContract === 'function', 'publicClient should have readContract');
 });
 
 // ---------------------------------------------------------------------------

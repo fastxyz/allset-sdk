@@ -1,8 +1,8 @@
 /**
- * evm-executor.ts — Minimal EVM transaction executor using viem
+ * evm-executor.ts — EVM client utilities using viem
  *
- * Provides sendTx, checkAllowance, and approveErc20 for bridge operations.
- * Also provides createEvmWallet() to load EVM wallets from keyfiles.
+ * Provides createEvmExecutor() to create viem wallet and public clients,
+ * and createEvmWallet() to load EVM wallets from keyfiles.
  *
  * Wallet keyfiles are managed by the user at ~/.evm/keys/ or custom paths.
  * Expected format: { "privateKey": "...", "address": "..." (optional) }
@@ -17,10 +17,11 @@ import {
   parseAbi,
   type Account,
   type Chain,
+  type PublicClient,
+  type WalletClient,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { arbitrumSepolia, sepolia } from 'viem/chains';
-import type { EvmTxExecutor } from './types.js';
 
 // Default EVM keys directory
 const DEFAULT_EVM_KEYS_DIR = join(
@@ -65,7 +66,7 @@ function expandPath(path: string): string {
  * const account = createEvmWallet('~/.evm/keys/default.json');
  * 
  * // Use with createEvmExecutor
- * const executor = createEvmExecutor(account, rpcUrl, chainId);
+ * const { walletClient, publicClient } = createEvmExecutor(account, rpcUrl, chainId);
  * 
  * // Access address
  * console.log(account.address);
@@ -93,43 +94,54 @@ export function createEvmWallet(path: string): Account {
   return privateKeyToAccount(key);
 }
 
-const ERC20_ABI = parseAbi([
+/** ERC20 ABI for allowance and approve */
+export const ERC20_ABI = parseAbi([
   'function approve(address spender, uint256 amount) returns (bool)',
   'function allowance(address owner, address spender) view returns (uint256)',
 ]);
 
-const CHAIN_MAP: Record<number, Chain> = {
+/** Supported chain mappings */
+export const CHAIN_MAP: Record<number, Chain> = {
   11155111: sepolia,
   421614: arbitrumSepolia,
 };
 
 /**
- * Create an EVM transaction executor for bridge operations.
+ * EVM clients returned by createEvmExecutor.
+ */
+export interface EvmClients {
+  walletClient: WalletClient;
+  publicClient: PublicClient;
+}
+
+/**
+ * Create viem wallet and public clients for EVM operations.
  *
  * @param account - viem Account from createEvmWallet() or privateKeyToAccount()
  * @param rpcUrl - RPC endpoint URL
  * @param chainId - Chain ID (11155111 for Sepolia, 421614 for Arbitrum Sepolia)
+ * @returns Object with walletClient and publicClient
  *
  * @example
  * ```ts
  * // Using Account from createEvmWallet (loads from keyfile)
  * const account = createEvmWallet('~/.evm/keys/default.json');
- * const executor = createEvmExecutor(account, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
+ * const { walletClient, publicClient } = createEvmExecutor(account, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
  * 
  * // Using viem's privateKeyToAccount directly
  * import { privateKeyToAccount } from 'viem/accounts';
  * const account = privateKeyToAccount('0xabc123...');
- * const executor = createEvmExecutor(account, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
+ * const { walletClient, publicClient } = createEvmExecutor(account, rpcUrl, chainId);
  * 
- * // Use executor for bridge deposit
- * await allset.sendToFast({ ..., evmExecutor: executor });
+ * // Use clients for bridge deposit
+ * await allset.sendToFast({ ..., evmClients: { walletClient, publicClient } });
  * ```
  */
 export function createEvmExecutor(
   account: Account,
   rpcUrl: string,
   chainId: number,
-): EvmTxExecutor {
+): EvmClients {
   const chain = CHAIN_MAP[chainId];
   if (!chain) {
     throw new Error(
@@ -148,40 +160,5 @@ export function createEvmExecutor(
     transport: http(rpcUrl),
   });
 
-  return {
-    async sendTx(tx): Promise<{ txHash: string; status: 'success' | 'reverted' }> {
-      const hash = await walletClient.sendTransaction({
-        to: tx.to as `0x${string}`,
-        data: tx.data as `0x${string}`,
-        value: BigInt(tx.value),
-        gas: tx.gas ? BigInt(tx.gas) : undefined,
-      });
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
-      return {
-        txHash: hash,
-        status: receipt.status === 'success' ? 'success' : 'reverted',
-      };
-    },
-
-    async checkAllowance(token, spender, owner): Promise<bigint> {
-      const allowance = await publicClient.readContract({
-        address: token as `0x${string}`,
-        abi: ERC20_ABI,
-        functionName: 'allowance',
-        args: [owner as `0x${string}`, spender as `0x${string}`],
-      });
-      return allowance;
-    },
-
-    async approveErc20(token, spender, amount): Promise<string> {
-      const hash = await walletClient.writeContract({
-        address: token as `0x${string}`,
-        abi: ERC20_ABI,
-        functionName: 'approve',
-        args: [spender as `0x${string}`, BigInt(amount)],
-      });
-      await publicClient.waitForTransactionReceipt({ hash });
-      return hash;
-    },
-  };
+  return { walletClient, publicClient };
 }

@@ -18,14 +18,14 @@
  * const evmAccount = createEvmWallet('~/.evm/keys/default.json'); // returns viem Account
  *
  * // Deposit: EVM → Fast
- * const evmExecutor = createEvmExecutor(evmAccount, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
+ * const evmClients = createEvmExecutor(evmAccount, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
  * await allset.sendToFast({
  *   chain: 'arbitrum',
  *   token: 'USDC',
  *   amount: '1000000',
  *   from: evmAccount.address,
  *   to: fastWallet.address,
- *   evmExecutor,
+ *   evmClients,
  * });
  *
  * // Withdraw: Fast → EVM
@@ -63,6 +63,7 @@ export {
 
 // EVM utilities
 export { createEvmExecutor, createEvmWallet, getEvmKeysDir } from './evm-executor.js';
+export type { EvmClients } from './evm-executor.js';
 
 // Config utilities (lower-level)
 export {
@@ -78,7 +79,6 @@ export type {
   BridgeProvider,
   BridgeParams,
   BridgeResult,
-  EvmTxExecutor,
   AllSetChainConfig,
   AllSetTokenInfo,
   SendToFastParams,
