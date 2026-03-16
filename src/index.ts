@@ -16,10 +16,10 @@
  * const allset = new AllSetProvider({ network: 'testnet' });
  * const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);
  *
- * // Create EVM account (3 ways)
- * const account = createEvmWallet();                           // Generate new
- * const account = createEvmWallet('0xprivateKey...');          // From private key
- * const account = createEvmWallet('~/.evm/keys/default.json'); // From keyfile
+ * // Create EVM account
+ * const account = createEvmWallet('~/.evm/keys/default.json');
+ * // Or: const account = createEvmWallet('0xprivateKey...');
+ * // Or: const account = createEvmWallet(); // persist account.privateKey if generated
  *
  * // Deposit: EVM → Fast
  * const evmClients = createEvmExecutor(account, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
@@ -67,7 +67,7 @@ export {
 
 // EVM utilities
 export { createEvmExecutor, createEvmWallet, getEvmKeysDir } from './evm-executor.js';
-export type { EvmClients } from './evm-executor.js';
+export type { EvmAccount, EvmClients } from './evm-executor.js';
 
 // Config utilities (lower-level)
 export {

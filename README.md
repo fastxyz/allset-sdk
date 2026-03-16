@@ -19,10 +19,10 @@ const fastProvider = new FastProvider({ network: 'testnet' });
 const allset = new AllSetProvider({ network: 'testnet' });
 const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);
 
-// Create EVM account (3 ways)
-const account = createEvmWallet();                           // Generate new
-const account = createEvmWallet('0xprivateKey...');          // From private key
-const account = createEvmWallet('~/.evm/keys/default.json'); // From keyfile
+// Create EVM account
+const account = createEvmWallet('~/.evm/keys/default.json');
+// Or: const account = createEvmWallet('0xprivateKey...');
+// Or: const account = createEvmWallet(); // persist account.privateKey if generated
 
 // Create EVM clients
 const evmClients = createEvmExecutor(account, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
@@ -50,17 +50,18 @@ await allset.sendToExternal({
 
 ## createEvmWallet
 
-Returns a viem `Account` object.
+Returns an Account-compatible object with viem signing methods and `privateKey`.
 
 ```ts
 // Generate new wallet
-const account = createEvmWallet();
+const generatedAccount = createEvmWallet();
+console.log(generatedAccount.privateKey); // persist this if you generated it
 
 // Derive from private key
-const account = createEvmWallet('0x1234...64hexchars');
+const derivedAccount = createEvmWallet('0x1234...64hexchars');
 
 // Load from keyfile
-const account = createEvmWallet('~/.evm/keys/default.json');
+const keyfileAccount = createEvmWallet('~/.evm/keys/default.json');
 ```
 
 **Keyfile format:**
@@ -79,7 +80,7 @@ Returns `{ walletClient, publicClient }` for EVM operations.
 const { walletClient, publicClient } = createEvmExecutor(account, rpcUrl, chainId);
 ```
 
-Only accepts viem `Account` — use `createEvmWallet()` or viem's `privateKeyToAccount()`.
+Accepts viem `Account` values, including the objects returned by `createEvmWallet()`.
 
 ## Advanced: Custom Intents
 

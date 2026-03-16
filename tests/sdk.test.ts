@@ -396,23 +396,28 @@ test('createEvmExecutor returns walletClient and publicClient', (t) => {
 test('createEvmWallet generates new wallet when no args', () => {
   const account = createEvmWallet();
   
-  // Should return a viem Account
+  // Should return an Account-compatible object with privateKey
   assert.ok(account.address.startsWith('0x'), 'address should start with 0x');
   assert.equal(account.address.length, 42, 'address should be 42 chars');
   assert.ok(typeof account.signMessage === 'function', 'should have signMessage method');
+  assert.ok(account.privateKey.startsWith('0x'), 'privateKey should start with 0x');
+  assert.equal(account.privateKey.length, 66, 'privateKey should be 66 chars');
+  assert.equal(createEvmWallet(account.privateKey).address, account.address, 'privateKey should recreate the same address');
   
   // Two calls should generate different wallets
   const account2 = createEvmWallet();
   assert.notEqual(account.address, account2.address, 'should generate unique addresses');
+  assert.notEqual(account.privateKey, account2.privateKey, 'should generate unique private keys');
 });
 
 test('createEvmWallet derives account from private key', () => {
   const privateKey = `0x${'55'.repeat(32)}`;
   const account = createEvmWallet(privateKey);
   
-  // Should return a viem Account with derived address
+  // Should return an Account-compatible object with derived address
   assert.ok(account.address.startsWith('0x'), 'address should start with 0x');
   assert.equal(account.address.length, 42, 'address should be 42 chars');
+  assert.equal(account.privateKey, privateKey, 'privateKey should be preserved');
   
   // Same key should produce same address
   const account2 = createEvmWallet(privateKey);
@@ -433,11 +438,12 @@ test('createEvmWallet loads account from keyfile', (t) => {
 
   const account = createEvmWallet(keyfile);
 
-  // Should return a viem Account
+  // Should return an Account-compatible object
   assert.ok(account.address.startsWith('0x'), 'address should start with 0x');
   assert.equal(account.address.length, 42, 'address should be 42 chars');
   assert.ok(typeof account.signMessage === 'function', 'should have signMessage method');
   assert.ok(typeof account.signTransaction === 'function', 'should have signTransaction method');
+  assert.equal(account.privateKey, `0x${privateKey}`, 'privateKey should be normalized from keyfile');
 });
 
 test('createEvmWallet handles 0x-prefixed privateKey in keyfile', (t) => {
@@ -451,6 +457,7 @@ test('createEvmWallet handles 0x-prefixed privateKey in keyfile', (t) => {
   const account = createEvmWallet(keyfile);
 
   assert.ok(account.address.startsWith('0x'), 'should derive address');
+  assert.equal(account.privateKey, privateKey, 'should preserve 0x-prefixed privateKey');
 });
 
 test('createEvmWallet throws for missing keyfile', () => {

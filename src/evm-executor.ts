@@ -23,6 +23,16 @@ import {
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { arbitrumSepolia, sepolia } from 'viem/chains';
 
+/**
+ * Account-compatible wallet returned by createEvmWallet().
+ *
+ * Includes the normalized private key so generated accounts can be persisted
+ * or reconstructed by the caller.
+ */
+export type EvmAccount = Account & {
+  privateKey: `0x${string}`;
+};
+
 // Default EVM keys directory
 const DEFAULT_EVM_KEYS_DIR = join(
   process.env.HOME || process.env.USERPROFILE || '',
@@ -55,8 +65,12 @@ function isFilePath(input: string): boolean {
   return input.includes('/') || input.startsWith('~') || input.endsWith('.json');
 }
 
+function normalizePrivateKey(privateKey: string): `0x${string}` {
+  return (privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`) as `0x${string}`;
+}
+
 /**
- * Create or load an EVM wallet and return a viem Account.
+ * Create or load an EVM wallet and return an Account-compatible object.
  *
  * @param keyOrPath - Optional. Can be:
  *   - Omitted: generates a new random wallet
@@ -68,14 +82,16 @@ function isFilePath(input: string): boolean {
  * - `address` (optional): for user reference only
  *
  * It is the user's responsibility to create and manage keyfiles.
+ * Generated accounts expose `privateKey` so callers can persist them.
  *
- * @returns viem Account object
+ * @returns Account-compatible object with viem signing methods and `privateKey`
  *
  * @example
  * ```ts
  * // Generate new wallet
  * const account = createEvmWallet();
  * console.log(account.address); // 0x...
+ * console.log(account.privateKey); // persist this if you generated the wallet
  * 
  * // Derive from private key
  * const account = createEvmWallet('0x1234...64hexchars');
@@ -95,7 +111,7 @@ function isFilePath(input: string): boolean {
  * }
  * ```
  */
-export function createEvmWallet(keyOrPath?: string): Account {
+export function createEvmWallet(keyOrPath?: string): EvmAccount {
   let key: `0x${string}`;
 
   if (!keyOrPath) {
@@ -112,13 +128,13 @@ export function createEvmWallet(keyOrPath?: string): Account {
     if (!data.privateKey) {
       throw new Error(`Invalid wallet file: missing privateKey`);
     }
-    key = (data.privateKey.startsWith('0x') ? data.privateKey : `0x${data.privateKey}`) as `0x${string}`;
+    key = normalizePrivateKey(data.privateKey);
   } else {
     // Treat as private key
-    key = (keyOrPath.startsWith('0x') ? keyOrPath : `0x${keyOrPath}`) as `0x${string}`;
+    key = normalizePrivateKey(keyOrPath);
   }
 
-  return privateKeyToAccount(key);
+  return Object.assign(privateKeyToAccount(key), { privateKey: key });
 }
 
 /** ERC20 ABI for allowance and approve */

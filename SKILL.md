@@ -73,22 +73,23 @@ const allset = new AllSetProvider({ configPath: './my-networks.json' });
 
 ### 3. Setting up EVM Wallet
 
-The `createEvmWallet()` function returns a viem `Account` object.
+The `createEvmWallet()` function returns an Account-compatible object with viem signing methods and `privateKey`.
 
 ```ts
 import { createEvmWallet } from '@fastxyz/allset-sdk';
 
 // Generate new wallet
-const account = createEvmWallet();
+const generatedAccount = createEvmWallet();
+console.log(generatedAccount.privateKey); // persist this if you generated it
 
 // Derive from private key
-const account = createEvmWallet('0x1234...64hexchars');
+const derivedAccount = createEvmWallet('0x1234...64hexchars');
 
 // Load from keyfile
-const account = createEvmWallet('~/.evm/keys/default.json');
+const keyfileAccount = createEvmWallet('~/.evm/keys/default.json');
 
 // Access the address
-console.log(account.address); // 0x...
+console.log(keyfileAccount.address); // 0x...
 ```
 
 **Keyfile format:**
@@ -121,7 +122,7 @@ const evmClients = createEvmExecutor(account, 'https://sepolia-rollup.arbitrum.i
 // evmClients contains { walletClient, publicClient }
 ```
 
-**Important:** `createEvmExecutor` only accepts viem `Account` objects. Use `createEvmWallet()` or `privateKeyToAccount()` to get an Account.
+**Important:** `createEvmExecutor` accepts viem `Account` values, including the objects returned by `createEvmWallet()`.
 
 ### 5. Use the correct execution path
 
