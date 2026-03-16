@@ -435,7 +435,7 @@ export async function executeIntent(
       'INVALID_PARAMS',
       'executeIntent requires fastWallet',
       {
-        note: 'Provide a FastWallet from @fastxyz/sdk.\n  Example: const wallet = await FastWallet.fromKeyfile("~/.fast/keys/default.json", provider)',
+        note: 'Provide a compatible Fast wallet.\n  Example: const wallet = await FastWallet.fromKeyfile("~/.fast/keys/default.json", provider)',
       },
     );
   }
@@ -612,7 +612,7 @@ async function handleWithdraw(
       'INVALID_PARAMS',
       'AllSet withdrawal (Fast → EVM) requires fastWallet',
       {
-        note: 'Provide a FastWallet from @fastxyz/sdk.\n  Example: const wallet = await FastWallet.fromKeyfile("~/.fast/keys/default.json", provider)',
+        note: 'Provide a compatible Fast wallet.\n  Example: const wallet = await FastWallet.fromKeyfile("~/.fast/keys/default.json", provider)',
       },
     );
   }

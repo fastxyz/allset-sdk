@@ -6,6 +6,7 @@ import path from 'node:path';
 const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const workspaceDir = process.cwd();
 const tempDir = mkdtempSync(path.join(os.tmpdir(), 'allset-sdk-pack-smoke-'));
+const tscBin = path.join(workspaceDir, 'node_modules', 'typescript', 'bin', 'tsc');
 const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const npmEnv = {
   ...process.env,
@@ -82,6 +83,34 @@ try {
       path.join(installedPackageRoot, 'dist', 'core', 'index.js'),
       path.join(installedPackageRoot, 'dist', 'browser', 'index.js'),
     ],
+    {
+      cwd: tempDir,
+      stdio: 'inherit',
+    },
+  );
+
+  writeFileSync(
+    path.join(tempDir, 'tsconfig.json'),
+    JSON.stringify({
+      compilerOptions: {
+        module: 'NodeNext',
+        moduleResolution: 'NodeNext',
+        target: 'ES2022',
+        noEmit: true,
+        strict: true,
+        skipLibCheck: false,
+      },
+    }, null, 2),
+    'utf8',
+  );
+  writeFileSync(
+    path.join(tempDir, 'node-smoke.ts'),
+    `import { createEvmWallet } from ${JSON.stringify(`${manifest.name}/node`)};\nconst wallet = createEvmWallet();\nconsole.log(wallet.address);\n`,
+    'utf8',
+  );
+  execFileSync(
+    process.execPath,
+    [tscBin, '-p', tempDir],
     {
       cwd: tempDir,
       stdio: 'inherit',

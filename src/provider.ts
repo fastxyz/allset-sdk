@@ -255,7 +255,7 @@ export class AllSetProvider {
    * // Simple transfer
    * const result = await allset.executeIntent({
    *   chain: 'arbitrum',
-   *   fastWallet,
+   *   fastWallet, // Compatible Fast wallet, e.g. FastWallet from @fastxyz/sdk
    *   token: 'fastUSDC',
    *   amount: '1000000',
    *   intents: [buildTransferIntent(USDC_ADDRESS, '0xRecipient')],
@@ -264,7 +264,7 @@ export class AllSetProvider {
    * // Custom contract call
    * const result = await allset.executeIntent({
    *   chain: 'arbitrum',
-   *   fastWallet,
+   *   fastWallet, // Compatible Fast wallet, e.g. FastWallet from @fastxyz/sdk
    *   token: 'fastUSDC',
    *   amount: '1000000',
    *   intents: [buildExecuteIntent(CONTRACT, calldata)],

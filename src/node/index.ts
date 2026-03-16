@@ -28,6 +28,7 @@ export type {
   BridgeParams,
   BridgeResult,
   EvmTxExecutor,
+  FastWalletLike,
   AllSetChainConfig,
   AllSetTokenInfo,
   SendToFastParams,

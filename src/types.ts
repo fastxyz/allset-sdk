@@ -13,6 +13,18 @@ export interface EvmTxExecutor {
   approveErc20(token: string, spender: string, amount: string): Promise<string>;
 }
 
+export interface FastWalletLike {
+  /** Sender Fast address (fast1...) */
+  readonly address: string;
+  submit(params: {
+    recipient: string;
+    claim: Record<string, unknown>;
+  }): Promise<{
+    txHash: string;
+    certificate: unknown;
+  }>;
+}
+
 export interface BridgeProvider {
   name: string;
   chains: string[];
@@ -32,8 +44,8 @@ export interface BridgeParams {
   senderAddress: string;
   receiverAddress: string;
   evmExecutor?: EvmTxExecutor;
-  /** FastWallet from @fastxyz/sdk — required for withdrawals (Fast → EVM) */
-  fastWallet?: import('@fastxyz/sdk').FastWallet;
+  /** Compatible Fast wallet — required for withdrawals (Fast → EVM) */
+  fastWallet?: FastWalletLike;
 }
 
 export interface BridgeResult {
@@ -74,8 +86,8 @@ export interface SendToExternalParams {
   from: string;
   /** Receiver's EVM address (0x...) */
   to: string;
-  /** FastWallet from @fastxyz/sdk */
-  fastWallet: import('@fastxyz/sdk').FastWallet;
+  /** Compatible Fast wallet, for example FastWallet from @fastxyz/sdk */
+  fastWallet: FastWalletLike;
 }
 
 /**
@@ -84,8 +96,8 @@ export interface SendToExternalParams {
 export interface ExecuteIntentParams {
   /** Destination EVM chain: 'ethereum' or 'arbitrum' */
   chain: string;
-  /** FastWallet from @fastxyz/sdk */
-  fastWallet: import('@fastxyz/sdk').FastWallet;
+  /** Compatible Fast wallet, for example FastWallet from @fastxyz/sdk */
+  fastWallet: FastWalletLike;
   /** Token to transfer to bridge (e.g., 'fastUSDC') */
   token: string;
   /** Amount in smallest units */
