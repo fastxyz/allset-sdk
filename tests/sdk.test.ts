@@ -3,23 +3,133 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { encodeFunctionData } from 'viem';
 
+import * as browserEntry from '../src/browser/index.ts';
+import * as coreEntry from '../src/index.ts';
+import {
+  IntentAction,
+  buildDepositTransaction,
+  encodeDepositCalldata,
+  fastAddressToBytes32,
+  resolveDepositRoute,
+  buildTransferIntent,
+  buildExecuteIntent,
+  buildDepositBackIntent,
+  buildRevokeIntent,
+} from '../src/index.ts';
 import {
   createEvmExecutor,
   createEvmWallet,
   AllSetProvider,
   executeBridge,
   evmSign,
-  IntentAction,
-  buildTransferIntent,
-  buildExecuteIntent,
-  buildDepositBackIntent,
-  buildRevokeIntent,
-} from '../src/index.ts';
+} from '../src/node/index.ts';
 
 const FAST_ADDRESS = 'fast1rsxfj84yhsskpr6g5ll2td7pkk3dnlsfwldsmawca4922qn3dqvqsxelzv';
 const EVM_ADDRESS = '0x1234567890123456789012345678901234567890';
 const TX_HASH = `0x${'11'.repeat(32)}`;
+
+// ---------------------------------------------------------------------------
+// Entrypoint Tests
+// ---------------------------------------------------------------------------
+
+test('root entrypoint only exposes pure helpers', () => {
+  assert.equal(typeof coreEntry.buildDepositTransaction, 'function');
+  assert.equal(typeof coreEntry.buildTransferIntent, 'function');
+  assert.equal('AllSetProvider' in coreEntry, false);
+  assert.equal('createEvmExecutor' in coreEntry, false);
+});
+
+test('browser entrypoint exposes pure helpers without node APIs', () => {
+  assert.equal(typeof browserEntry.buildDepositTransaction, 'function');
+  assert.equal(typeof browserEntry.buildTransferIntent, 'function');
+  assert.equal('AllSetProvider' in browserEntry, false);
+  assert.equal('createEvmExecutor' in browserEntry, false);
+});
+
+// ---------------------------------------------------------------------------
+// Deposit Planning Tests
+// ---------------------------------------------------------------------------
+
+test('fastAddressToBytes32 converts a Fast receiver into bytes32', () => {
+  assert.equal(
+    fastAddressToBytes32(FAST_ADDRESS),
+    '0x1c0c991ea4bc21608f48a7fea5b7c1b5a2d9fe0977db0df5d8ed4aa502716818',
+  );
+});
+
+test('encodeDepositCalldata matches deposit(address,uint256,bytes32) encoding', () => {
+  const receiverBytes32 = fastAddressToBytes32(FAST_ADDRESS);
+  const tokenAddress = '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d';
+
+  const expected = encodeFunctionData({
+    abi: [{
+      type: 'function' as const,
+      name: 'deposit' as const,
+      inputs: [
+        { name: 'token', type: 'address' as const },
+        { name: 'amount', type: 'uint256' as const },
+        { name: 'receiver', type: 'bytes32' as const },
+      ],
+      outputs: [],
+      stateMutability: 'payable' as const,
+    }],
+    functionName: 'deposit',
+    args: [tokenAddress as `0x${string}`, 1_000_000n, receiverBytes32],
+  });
+
+  assert.equal(
+    encodeDepositCalldata({
+      tokenAddress,
+      amount: 1_000_000n,
+      receiverBytes32,
+    }),
+    expected,
+  );
+});
+
+test('resolveDepositRoute returns the configured testnet arbitrum route', () => {
+  const route = resolveDepositRoute({
+    network: 'testnet',
+    chain: 'arbitrum',
+    token: 'fastUSDC',
+  });
+
+  assert.equal(route.chainId, 421614);
+  assert.equal(route.bridgeAddress, '0x1B296f9160bFB2Fa15f3F8A0567FD060dC95C4b4');
+  assert.equal(route.tokenAddress, '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d');
+  assert.equal(route.token, 'USDC');
+  assert.equal(route.isNative, false);
+});
+
+test('buildDepositTransaction applies route overrides', () => {
+  const plan = buildDepositTransaction({
+    network: 'testnet',
+    chain: 'arbitrum',
+    token: 'USDC',
+    amount: 1_000_000n,
+    receiver: FAST_ADDRESS,
+    overrides: {
+      bridgeAddress: '0x9999999999999999999999999999999999999999',
+    },
+  });
+
+  assert.equal(plan.to, '0x9999999999999999999999999999999999999999');
+  assert.equal(plan.value, 0n);
+  assert.ok(plan.data.startsWith('0x'));
+});
+
+test('resolveDepositRoute rejects unsupported routes', () => {
+  assert.throws(
+    () => resolveDepositRoute({
+      network: 'mainnet',
+      chain: 'arbitrum',
+      token: 'USDC',
+    }),
+    /does not support EVM chain/,
+  );
+});
 
 // ---------------------------------------------------------------------------
 // AllSetProvider Tests
@@ -121,6 +231,43 @@ test('AllSetProvider configPath drives sendToFast execution', async (t) => {
   assert.equal(result.txHash, '0xcustom');
   assert.equal(sentTx?.to, '0x1111111111111111111111111111111111111111');
   assert.equal(sentTx?.value, '0');
+});
+
+test('AllSetProvider sendToFast matches the public deposit builder output', async () => {
+  const allset = new AllSetProvider({ network: 'testnet' });
+  const expectedPlan = buildDepositTransaction({
+    network: 'testnet',
+    chain: 'arbitrum',
+    token: 'USDC',
+    amount: 1_000_000n,
+    receiver: FAST_ADDRESS,
+  });
+
+  let sentTx: { to: string; data: string; value: string } | undefined;
+  const mockExecutor = {
+    sendTx: async (tx: { to: string; data: string; value: string }) => {
+      sentTx = tx;
+      return { txHash: '0xplanned', status: 'success' as const };
+    },
+    checkAllowance: async () => 1_000_000n,
+    approveErc20: async () => '0xapprove',
+  };
+
+  const result = await allset.sendToFast({
+    chain: 'arbitrum',
+    token: 'USDC',
+    amount: '1000000',
+    from: EVM_ADDRESS,
+    to: FAST_ADDRESS,
+    evmExecutor: mockExecutor,
+  });
+
+  assert.equal(result.txHash, '0xplanned');
+  assert.deepEqual(sentTx, {
+    to: expectedPlan.to,
+    data: expectedPlan.data,
+    value: expectedPlan.value.toString(),
+  });
 });
 
 // ---------------------------------------------------------------------------

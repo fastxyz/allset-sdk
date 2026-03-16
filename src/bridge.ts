@@ -8,11 +8,11 @@
  *   Withdraw (Fast → EVM): transfer on Fast network + submit ExternalClaim intent + POST to relayer
  */
 
-import { bech32m } from 'bech32';
-import { decodeAbiParameters, encodeAbiParameters, encodeFunctionData } from 'viem';
+import { decodeAbiParameters, encodeAbiParameters } from 'viem';
 import { FastError } from '@fastxyz/sdk';
 import type { BridgeParams, BridgeResult, AllSetChainConfig, AllSetTokenInfo, ExecuteIntentParams } from './types.js';
 import { getNetworkConfig, getChainConfig, getTokenConfig, type ChainConfig, type TokenConfig } from './config.js';
+import { buildDepositTransactionFromRoute } from './core/deposit.js';
 import { IntentAction, type Intent, buildTransferIntent } from './intents.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -121,12 +121,6 @@ function resolveAllSetToken(
   return null;
 }
 
-function fastAddressToBytes32(address: string): `0x${string}` {
-  const { words } = bech32m.decode(address, 90);
-  const bytes = new Uint8Array(bech32m.fromWords(words));
-  return `0x${Buffer.from(bytes).toString('hex')}` as `0x${string}`;
-}
-
 function hexToUint8Array(hex: string): Uint8Array {
   const clean = hex.startsWith('0x') ? hex.slice(2) : hex;
   const bytes = new Uint8Array(clean.length / 2);
@@ -135,18 +129,6 @@ function hexToUint8Array(hex: string): Uint8Array {
   }
   return bytes;
 }
-
-const BRIDGE_DEPOSIT_ABI = [{
-  type: 'function' as const,
-  name: 'deposit' as const,
-  inputs: [
-    { name: 'token', type: 'address' as const },
-    { name: 'amount', type: 'uint256' as const },
-    { name: 'receiver', type: 'bytes32' as const },
-  ],
-  outputs: [],
-  stateMutability: 'payable' as const,
-}];
 
 function resolveExternalAddress(
   intents: Intent[],
@@ -341,9 +323,22 @@ async function handleDeposit(
     );
   }
 
-  let receiverBytes32: `0x${string}`;
+  let depositPlan: ReturnType<typeof buildDepositTransactionFromRoute>;
   try {
-    receiverBytes32 = fastAddressToBytes32(params.receiverAddress);
+    depositPlan = buildDepositTransactionFromRoute(
+      {
+        network,
+        chain: params.fromChain,
+        token: params.fromToken,
+        chainId: chainConfig.chainId,
+        bridgeAddress: chainConfig.bridgeContract as `0x${string}`,
+        tokenAddress: tokenInfo.evmAddress as `0x${string}`,
+        decimals: tokenInfo.decimals,
+        isNative: tokenInfo.isNative,
+      },
+      BigInt(params.amount),
+      params.receiverAddress,
+    );
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     throw new FastError(
@@ -355,23 +350,13 @@ async function handleDeposit(
     );
   }
 
-  const calldata = encodeFunctionData({
-    abi: BRIDGE_DEPOSIT_ABI,
-    functionName: 'deposit',
-    args: [
-      tokenInfo.evmAddress as `0x${string}`,
-      BigInt(params.amount),
-      receiverBytes32,
-    ],
-  });
-
   let txHash: string;
 
-  if (tokenInfo.isNative) {
+  if (depositPlan.route.isNative) {
     const receipt = await params.evmExecutor.sendTx({
-      to: chainConfig.bridgeContract,
-      data: calldata,
-      value: params.amount,
+      to: depositPlan.to,
+      data: depositPlan.data,
+      value: depositPlan.value.toString(),
     });
     if (receipt.status === 'reverted') {
       throw new FastError(
@@ -386,22 +371,22 @@ async function handleDeposit(
   } else {
     const requiredAmount = BigInt(params.amount);
     const currentAllowance = await params.evmExecutor.checkAllowance(
-      tokenInfo.evmAddress,
-      chainConfig.bridgeContract,
+      depositPlan.route.tokenAddress,
+      depositPlan.to,
       params.senderAddress,
     );
     if (currentAllowance < requiredAmount) {
       await params.evmExecutor.approveErc20(
-        tokenInfo.evmAddress,
-        chainConfig.bridgeContract,
+        depositPlan.route.tokenAddress,
+        depositPlan.to,
         params.amount,
       );
     }
 
     const receipt = await params.evmExecutor.sendTx({
-      to: chainConfig.bridgeContract,
-      data: calldata,
-      value: '0',
+      to: depositPlan.to,
+      data: depositPlan.data,
+      value: depositPlan.value.toString(),
     });
     if (receipt.status === 'reverted') {
       throw new FastError(

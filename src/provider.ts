@@ -6,8 +6,8 @@
  */
 
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+import { DEFAULT_NETWORKS_CONFIG } from './default-config.js';
 import type { NetworkConfig, ChainConfig, TokenConfig, AllNetworksConfig } from './config.js';
 import type { BridgeResult, SendToFastParams, SendToExternalParams, ExecuteIntentParams } from './types.js';
 
@@ -33,7 +33,7 @@ export interface AllSetProviderOptions {
    * Custom path to networks.json config file.
    * If not provided, loads from:
    * 1. ~/.allset/networks.json (user override)
-   * 2. Bundled data/networks.json (package default)
+   * 2. Embedded package defaults
    */
   configPath?: string;
 
@@ -55,22 +55,15 @@ function expandHome(path: string): string {
   return path;
 }
 
-function getPackageDataDir(): string {
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = dirname(__filename);
-  return join(__dirname, '..', 'data');
-}
-
 function getUserConfigPath(): string {
   return join(ALLSET_DIR, 'networks.json');
 }
 
 function loadConfig(customPath?: string): AllNetworksConfig {
-  // Priority: customPath > ~/.allset/networks.json > bundled data/networks.json
+  // Priority: customPath > ~/.allset/networks.json > embedded default config
   const paths = [
     customPath,
     getUserConfigPath(),
-    join(getPackageDataDir(), 'networks.json'),
   ].filter((p): p is string => !!p);
 
   for (const configPath of paths) {
@@ -85,9 +78,7 @@ function loadConfig(customPath?: string): AllNetworksConfig {
     }
   }
 
-  throw new Error(
-    'Failed to load AllSet networks config. Ensure data/networks.json exists in the package.'
-  );
+  return structuredClone(DEFAULT_NETWORKS_CONFIG);
 }
 
 // ---------------------------------------------------------------------------
@@ -319,7 +310,7 @@ export function ensureAllSetDirs(): void {
 }
 
 /**
- * Initialize user config by copying bundled networks.json to ~/.allset/.
+ * Initialize user config by writing the embedded defaults to ~/.allset/.
  * Does nothing if user config already exists.
  */
 export function initUserConfig(): string {
@@ -330,11 +321,11 @@ export function initUserConfig(): string {
     return userConfigPath;
   }
 
-  const bundledPath = join(getPackageDataDir(), 'networks.json');
-  if (existsSync(bundledPath)) {
-    const content = readFileSync(bundledPath, 'utf-8');
-    writeFileSync(userConfigPath, content, { mode: 0o600 });
-  }
+  writeFileSync(
+    userConfigPath,
+    `${JSON.stringify(DEFAULT_NETWORKS_CONFIG, null, 2)}\n`,
+    { mode: 0o600 },
+  );
 
   return userConfigPath;
 }

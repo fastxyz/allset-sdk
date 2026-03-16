@@ -38,7 +38,7 @@ try {
     'utf8',
   );
 
-  execFileSync(npmCmd, ['install', tarballPath], {
+  execFileSync(npmCmd, ['install', tarballPath, '@fastxyz/sdk'], {
     cwd: tempDir,
     env: npmEnv,
     stdio: 'inherit',
@@ -55,12 +55,32 @@ try {
     throw new Error(`Unexpected installed package name: ${installedManifest.name}`);
   }
 
+  const installedPackageRoot = path.join(
+    tempDir,
+    'node_modules',
+    ...String(manifest.name).split('/'),
+  );
+
   execFileSync(
     process.execPath,
     [
       '--input-type=module',
       '--eval',
-      `import { AllSetProvider, createEvmExecutor } from ${JSON.stringify(manifest.name)}; const allset = new AllSetProvider(); if (typeof allset?.sendToFast !== "function") throw new Error("AllSetProvider sendToFast method missing"); if (typeof allset?.sendToExternal !== "function") throw new Error("AllSetProvider sendToExternal method missing"); if (typeof createEvmExecutor !== "function") throw new Error("createEvmExecutor export missing"); if (allset?.network !== "testnet") throw new Error("unexpected default network");`,
+      `const root = await import(${JSON.stringify(manifest.name)}); const core = await import(${JSON.stringify(`${manifest.name}/core`)}); const browser = await import(${JSON.stringify(`${manifest.name}/browser`)}); const node = await import(${JSON.stringify(`${manifest.name}/node`)}); if (typeof root.buildDepositTransaction !== "function") throw new Error("root buildDepositTransaction export missing"); if (typeof core.resolveDepositRoute !== "function") throw new Error("core resolveDepositRoute export missing"); if (typeof browser.buildTransferIntent !== "function") throw new Error("browser buildTransferIntent export missing"); if ("AllSetProvider" in root) throw new Error("root should not export AllSetProvider"); if ("createEvmExecutor" in browser) throw new Error("browser should not export createEvmExecutor"); const allset = new node.AllSetProvider(); if (typeof allset?.sendToFast !== "function") throw new Error("node AllSetProvider sendToFast missing"); if (typeof node.createEvmExecutor !== "function") throw new Error("node createEvmExecutor export missing");`,
+    ],
+    {
+      cwd: tempDir,
+      stdio: 'inherit',
+    },
+  );
+
+  execFileSync(
+    process.execPath,
+    [
+      path.join(workspaceDir, 'scripts', 'check-browser-entrypoints.mjs'),
+      path.join(installedPackageRoot, 'dist', 'index.js'),
+      path.join(installedPackageRoot, 'dist', 'core', 'index.js'),
+      path.join(installedPackageRoot, 'dist', 'browser', 'index.js'),
     ],
     {
       cwd: tempDir,
