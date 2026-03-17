@@ -1,5 +1,5 @@
 /**
- * config.ts — Embedded network configuration accessors
+ * config.ts — Bundled network configuration accessors
  */
 
 import { DEFAULT_NETWORKS_CONFIG } from './default-config.js';
@@ -40,7 +40,7 @@ let cachedConfig: AllNetworksConfig | null = null;
 
 /**
  * Load the networks configuration.
- * Caches a clone of the embedded default config after first load.
+ * Caches a clone of the bundled JSON config after first load.
  */
 export function loadNetworksConfig(): AllNetworksConfig {
   if (cachedConfig) {

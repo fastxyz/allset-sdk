@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { encodeFunctionData } from 'viem';
+import bundledNetworksConfig from '../data/networks.json' with { type: 'json' };
 
 import * as browserEntry from '../src/browser/index.ts';
 import * as coreEntry from '../src/index.ts';
@@ -24,6 +25,7 @@ import {
   AllSetProvider,
   executeBridge,
   evmSign,
+  loadNetworksConfig,
 } from '../src/node/index.ts';
 
 const FAST_ADDRESS = 'fast1rsxfj84yhsskpr6g5ll2td7pkk3dnlsfwldsmawca4922qn3dqvqsxelzv';
@@ -129,6 +131,10 @@ test('resolveDepositRoute rejects unsupported routes', () => {
     }),
     /does not support EVM chain/,
   );
+});
+
+test('loadNetworksConfig defaults to bundled data/networks.json', () => {
+  assert.deepEqual(loadNetworksConfig(), bundledNetworksConfig);
 });
 
 // ---------------------------------------------------------------------------

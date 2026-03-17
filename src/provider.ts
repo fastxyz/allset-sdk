@@ -33,7 +33,7 @@ export interface AllSetProviderOptions {
    * Custom path to networks.json config file.
    * If not provided, loads from:
    * 1. ~/.allset/networks.json (user override)
-   * 2. Embedded package defaults
+   * 2. Bundled package data/networks.json
    */
   configPath?: string;
 
@@ -60,7 +60,7 @@ function getUserConfigPath(): string {
 }
 
 function loadConfig(customPath?: string): AllNetworksConfig {
-  // Priority: customPath > ~/.allset/networks.json > embedded default config
+  // Priority: customPath > ~/.allset/networks.json > bundled package data/networks.json
   const paths = [
     customPath,
     getUserConfigPath(),
@@ -313,7 +313,7 @@ export function ensureAllSetDirs(): void {
 }
 
 /**
- * Initialize user config by writing the embedded defaults to ~/.allset/.
+ * Initialize user config by writing the bundled defaults to ~/.allset/.
  * Does nothing if user config already exists.
  */
 export function initUserConfig(): string {
