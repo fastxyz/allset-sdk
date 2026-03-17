@@ -31,8 +31,7 @@
     }
   },
   "files": [
-    "dist",
-    "data"
+    "dist"
   ],
   "scripts": {
     "build": "npm run clean && tsc",
