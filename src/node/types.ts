@@ -95,7 +95,7 @@ export interface ExecuteIntentParams {
   /** Amount in smallest units */
   amount: string;
   /** Array of intents to execute on EVM chain */
-  intents: import('./intents.js').Intent[];
+  intents: import('../intents.js').Intent[];
   /**
    * Optional EVM address for the relayer target.
    * Required when intents do not include a transfer recipient or execute target.

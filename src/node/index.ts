@@ -6,13 +6,13 @@ export {
   getEvmKeysDir as getAllSetEvmKeysDir,
   ensureAllSetDirs,
   initUserConfig,
-} from '../provider.js';
+} from './provider.js';
 
 export {
   createEvmExecutor,
   createEvmWallet,
   getEvmKeysDir,
-} from '../evm-executor.js';
+} from './evm-executor.js';
 
 export {
   loadNetworksConfig,
@@ -20,7 +20,7 @@ export {
   getChainConfig,
   getTokenConfig,
   clearConfigCache,
-} from '../config.js';
+} from './config.js';
 
 export type {
   BridgeProvider,
@@ -32,31 +32,31 @@ export type {
   SendToFastParams,
   SendToExternalParams,
   ExecuteIntentParams,
-} from '../types.js';
+} from './types.js';
 
 export type { Intent } from '../intents.js';
-export type { EvmSignResult } from '../bridge.js';
-export type { EvmAccount, EvmClients } from '../evm-executor.js';
-export type { NetworkConfig, ChainConfig, TokenConfig, AllNetworksConfig } from '../config.js';
-export type { AllSetProviderOptions } from '../provider.js';
+export type { EvmSignResult } from './bridge.js';
+export type { EvmAccount, EvmClients } from './evm-executor.js';
+export type { NetworkConfig, ChainConfig, TokenConfig, AllNetworksConfig } from './config.js';
+export type { AllSetProviderOptions } from './provider.js';
 
 export async function evmSign(
-  ...args: Parameters<typeof import('../bridge.js').evmSign>
-): ReturnType<typeof import('../bridge.js').evmSign> {
-  const mod = await import('../bridge.js');
+  ...args: Parameters<typeof import('./bridge.js').evmSign>
+): ReturnType<typeof import('./bridge.js').evmSign> {
+  const mod = await import('./bridge.js');
   return mod.evmSign(...args);
 }
 
 export async function executeBridge(
-  ...args: Parameters<typeof import('../bridge.js').executeBridge>
-): ReturnType<typeof import('../bridge.js').executeBridge> {
-  const mod = await import('../bridge.js');
+  ...args: Parameters<typeof import('./bridge.js').executeBridge>
+): ReturnType<typeof import('./bridge.js').executeBridge> {
+  const mod = await import('./bridge.js');
   return mod.executeBridge(...args);
 }
 
 export async function executeIntent(
-  ...args: Parameters<typeof import('../bridge.js').executeIntent>
-): ReturnType<typeof import('../bridge.js').executeIntent> {
-  const mod = await import('../bridge.js');
+  ...args: Parameters<typeof import('./bridge.js').executeIntent>
+): ReturnType<typeof import('./bridge.js').executeIntent> {
+  const mod = await import('./bridge.js');
   return mod.executeIntent(...args);
 }

@@ -391,11 +391,11 @@ await allset.sendToExternal({
 
 - `src/index.ts` — Pure helper exports
 - `src/node/index.ts` — Node runtime exports
-- `src/provider.ts` — AllSetProvider class
-- `src/bridge.ts` — Bridge logic, executeIntent
-- `src/evm-executor.ts` — EVM wallet and client utilities
+- `src/node/provider.ts` — AllSetProvider class
+- `src/node/bridge.ts` — Bridge logic, executeIntent
+- `src/node/evm-executor.ts` — EVM wallet and client utilities
+- `src/node/types.ts` — Runtime type definitions
 - `src/intents.ts` — Intent builders
-- `src/types.ts` — Type definitions
 - `src/default-config.ts` — Bundled default network configuration
 
 ## Common Requests

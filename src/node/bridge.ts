@@ -12,8 +12,8 @@ import { decodeAbiParameters, encodeAbiParameters } from 'viem';
 import { FastError } from '@fastxyz/sdk';
 import type { BridgeParams, BridgeResult, AllSetChainConfig, AllSetTokenInfo, ExecuteIntentParams } from './types.js';
 import { getNetworkConfig, getChainConfig, getTokenConfig, type ChainConfig, type TokenConfig } from './config.js';
-import { buildDepositTransactionFromRoute } from './core/deposit.js';
-import { IntentAction, type Intent, buildTransferIntent } from './intents.js';
+import { buildDepositTransactionFromRoute } from '../core/deposit.js';
+import { IntentAction, type Intent, buildTransferIntent } from '../intents.js';
 import { ERC20_ABI, type EvmClients } from './evm-executor.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
