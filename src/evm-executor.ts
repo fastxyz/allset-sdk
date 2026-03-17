@@ -1,15 +1,15 @@
 /**
- * evm-executor.ts — Minimal EVM transaction executor using viem
+ * evm-executor.ts — EVM client utilities using viem
  *
- * Provides sendTx, checkAllowance, and approveErc20 for bridge operations.
- * Also provides createEvmWallet() to generate, derive, or load EVM wallets,
- * and saveEvmWallet() to persist them to disk.
+ * Provides createEvmExecutor() to create viem wallet and public clients,
+ * and createEvmWallet() to generate or load EVM wallets.
  *
- * Default wallet path: ~/.allset/.evm/keys/
+ * Wallet keyfiles are managed by the user at ~/.evm/keys/ or custom paths.
+ * Expected format: { "privateKey": "...", "address": "..." (optional) }
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   createPublicClient,
   createWalletClient,
@@ -17,26 +17,31 @@ import {
   parseAbi,
   type Account,
   type Chain,
+  type PublicClient,
+  type WalletClient,
 } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
-import { arbitrumSepolia, sepolia } from 'viem/chains';
-import type { EvmTxExecutor } from './types.js';
+import { arbitrumSepolia, base, sepolia } from 'viem/chains';
 
-export interface EvmWallet {
+/**
+ * Account-compatible wallet returned by createEvmWallet().
+ *
+ * Includes the normalized private key so generated accounts can be persisted
+ * or reconstructed by the caller.
+ */
+export type EvmAccount = Account & {
   privateKey: `0x${string}`;
-  address: `0x${string}`;
-}
+};
 
 // Default EVM keys directory
 const DEFAULT_EVM_KEYS_DIR = join(
   process.env.HOME || process.env.USERPROFILE || '',
-  '.allset',
   '.evm',
   'keys'
 );
 
 /**
- * Get the default EVM keys directory (~/.allset/.evm/keys).
+ * Get the default EVM keys directory (~/.evm/keys).
  */
 export function getEvmKeysDir(): string {
   return DEFAULT_EVM_KEYS_DIR;
@@ -60,33 +65,53 @@ function isFilePath(input: string): boolean {
   return input.includes('/') || input.startsWith('~') || input.endsWith('.json');
 }
 
+function normalizePrivateKey(privateKey: string): `0x${string}` {
+  return (privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`) as `0x${string}`;
+}
+
 /**
- * Create, derive, or load an EVM wallet.
+ * Create or load an EVM wallet and return an Account-compatible object.
  *
  * @param keyOrPath - Optional. Can be:
  *   - Omitted: generates a new random wallet
- *   - Private key (64 hex chars, with or without 0x): derives address from it
- *   - File path (contains `/` or `~`, or ends with `.json`): loads from JSON file
+ *   - Private key (64 hex chars, with or without 0x): derives account from it
+ *   - File path (contains `/` or `~`, or ends with `.json`): loads from JSON keyfile
+ *
+ * The keyfile must be a JSON file containing:
+ * - `privateKey` (required): hex string, with or without 0x prefix
+ * - `address` (optional): for user reference only
+ *
+ * It is the user's responsibility to create and manage keyfiles.
+ * Generated accounts expose `privateKey` so callers can persist them.
+ *
+ * @returns Account-compatible object with viem signing methods and `privateKey`
  *
  * @example
  * ```ts
  * // Generate new wallet
- * const wallet = createEvmWallet();
- *
+ * const account = createEvmWallet();
+ * console.log(account.address); // 0x...
+ * console.log(account.privateKey); // persist this if you generated the wallet
+ * 
  * // Derive from private key
- * const wallet = createEvmWallet('0x1234...64hexchars...');
- *
- * // Load from file
- * const wallet = createEvmWallet('~/.evm/keys/default.json');
- *
- * // Same-key pattern (derive from Fast wallet)
- * const keys = await fastWallet.exportKeys();
- * const evmWallet = createEvmWallet(keys.privateKey);
+ * const account = createEvmWallet('0x1234...64hexchars');
+ * 
+ * // Load from keyfile
+ * const account = createEvmWallet('~/.evm/keys/default.json');
+ * 
+ * // Use with createEvmExecutor
+ * const { walletClient, publicClient } = createEvmExecutor(account, rpcUrl, chainId);
  * ```
  *
- * @returns Object containing privateKey and address
+ * @example Keyfile format
+ * ```json
+ * {
+ *   "privateKey": "abc123...64hexchars",
+ *   "address": "0x..." // optional, for reference
+ * }
+ * ```
  */
-export function createEvmWallet(keyOrPath?: string): EvmWallet {
+export function createEvmWallet(keyOrPath?: string): EvmAccount {
   let key: `0x${string}`;
 
   if (!keyOrPath) {
@@ -103,68 +128,64 @@ export function createEvmWallet(keyOrPath?: string): EvmWallet {
     if (!data.privateKey) {
       throw new Error(`Invalid wallet file: missing privateKey`);
     }
-    key = (data.privateKey.startsWith('0x') ? data.privateKey : `0x${data.privateKey}`) as `0x${string}`;
+    key = normalizePrivateKey(data.privateKey);
   } else {
     // Treat as private key
-    key = (keyOrPath.startsWith('0x') ? keyOrPath : `0x${keyOrPath}`) as `0x${string}`;
+    key = normalizePrivateKey(keyOrPath);
   }
 
-  const account = privateKeyToAccount(key);
-  return {
-    privateKey: key,
-    address: account.address,
-  };
+  return Object.assign(privateKeyToAccount(key), { privateKey: key });
 }
 
-/**
- * Save an EVM wallet to a JSON file.
- *
- * Creates parent directories if they don't exist.
- * The file format matches Fast wallet keyfiles for consistency.
- * Default location: ~/.allset/.evm/keys/
- *
- * @param wallet - The wallet object with privateKey and address
- * @param path - File path to save to (supports ~ expansion)
- *
- * @example
- * ```ts
- * const wallet = createEvmWallet();
- * saveEvmWallet(wallet, '~/.allset/.evm/keys/default.json');
- * ```
- */
-export function saveEvmWallet(wallet: EvmWallet, path: string): void {
-  const fullPath = expandPath(path);
-  const dir = dirname(fullPath);
-  
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true, mode: 0o700 });
-  }
-
-  const data = {
-    privateKey: wallet.privateKey.replace('0x', ''), // Store without 0x prefix like Fast wallet
-    address: wallet.address,
-  };
-
-  writeFileSync(fullPath, JSON.stringify(data, null, 2) + '\n', { mode: 0o600 });
-}
-
-const ERC20_ABI = parseAbi([
+/** ERC20 ABI for allowance and approve */
+export const ERC20_ABI = parseAbi([
   'function approve(address spender, uint256 amount) returns (bool)',
   'function allowance(address owner, address spender) view returns (uint256)',
 ]);
 
-const CHAIN_MAP: Record<number, Chain> = {
+/** Supported chain mappings */
+export const CHAIN_MAP: Record<number, Chain> = {
   11155111: sepolia,
   421614: arbitrumSepolia,
+  8453: base,
 };
 
+/**
+ * EVM clients returned by createEvmExecutor.
+ */
+export interface EvmClients {
+  walletClient: WalletClient;
+  publicClient: PublicClient;
+}
+
+/**
+ * Create viem wallet and public clients for EVM operations.
+ *
+ * @param account - viem Account from createEvmWallet() or privateKeyToAccount()
+ * @param rpcUrl - RPC endpoint URL
+ * @param chainId - Chain ID (11155111 for Sepolia, 421614 for Arbitrum Sepolia)
+ * @returns Object with walletClient and publicClient
+ *
+ * @example
+ * ```ts
+ * // Using Account from createEvmWallet (loads from keyfile)
+ * const account = createEvmWallet('~/.evm/keys/default.json');
+ * const { walletClient, publicClient } = createEvmExecutor(account, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
+ * 
+ * // Using viem's privateKeyToAccount directly
+ * import { privateKeyToAccount } from 'viem/accounts';
+ * const account = privateKeyToAccount('0xabc123...');
+ * const { walletClient, publicClient } = createEvmExecutor(account, rpcUrl, chainId);
+ * 
+ * // Use clients for bridge deposit
+ * await allset.sendToFast({ ..., evmClients: { walletClient, publicClient } });
+ * ```
+ */
 export function createEvmExecutor(
-  privateKey: string,
+  account: Account,
   rpcUrl: string,
   chainId: number,
-): EvmTxExecutor {
-  const key = (privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`) as `0x${string}`;
-  const account: Account = privateKeyToAccount(key);
+): EvmClients {
   const chain = CHAIN_MAP[chainId];
   if (!chain) {
     throw new Error(
@@ -183,40 +204,5 @@ export function createEvmExecutor(
     transport: http(rpcUrl),
   });
 
-  return {
-    async sendTx(tx): Promise<{ txHash: string; status: 'success' | 'reverted' }> {
-      const hash = await walletClient.sendTransaction({
-        to: tx.to as `0x${string}`,
-        data: tx.data as `0x${string}`,
-        value: BigInt(tx.value),
-        gas: tx.gas ? BigInt(tx.gas) : undefined,
-      });
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
-      return {
-        txHash: hash,
-        status: receipt.status === 'success' ? 'success' : 'reverted',
-      };
-    },
-
-    async checkAllowance(token, spender, owner): Promise<bigint> {
-      const allowance = await publicClient.readContract({
-        address: token as `0x${string}`,
-        abi: ERC20_ABI,
-        functionName: 'allowance',
-        args: [owner as `0x${string}`, spender as `0x${string}`],
-      });
-      return allowance;
-    },
-
-    async approveErc20(token, spender, amount): Promise<string> {
-      const hash = await walletClient.writeContract({
-        address: token as `0x${string}`,
-        abi: ERC20_ABI,
-        functionName: 'approve',
-        args: [spender as `0x${string}`, BigInt(amount)],
-      });
-      await publicClient.waitForTransactionReceipt({ hash });
-      return hash;
-    },
-  };
+  return { walletClient, publicClient };
 }

@@ -15,17 +15,21 @@
  * const fastProvider = new FastProvider({ network: 'testnet' });
  * const allset = new AllSetProvider({ network: 'testnet' });
  * const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);
- * const evmWallet = createEvmWallet('~/.allset/.evm/keys/default.json');
+ *
+ * // Create EVM account
+ * const account = createEvmWallet('~/.evm/keys/default.json');
+ * // Or: const account = createEvmWallet('0xprivateKey...');
+ * // Or: const account = createEvmWallet(); // persist account.privateKey if generated
  *
  * // Deposit: EVM → Fast
- * const evmExecutor = createEvmExecutor(evmWallet.privateKey, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
+ * const evmClients = createEvmExecutor(account, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
  * await allset.sendToFast({
  *   chain: 'arbitrum',
  *   token: 'USDC',
  *   amount: '1000000',
- *   from: evmWallet.address,
+ *   from: account.address,
  *   to: fastWallet.address,
- *   evmExecutor,
+ *   evmClients,
  * });
  *
  * // Withdraw: Fast → EVM
@@ -34,7 +38,7 @@
  *   token: 'fastUSDC',
  *   amount: '1000000',
  *   from: fastWallet.address,
- *   to: evmWallet.address,
+ *   to: account.address,
  *   fastWallet,
  * });
  * ```
@@ -62,7 +66,8 @@ export {
 } from './provider.js';
 
 // EVM utilities
-export { createEvmExecutor, createEvmWallet, saveEvmWallet, getEvmKeysDir } from './evm-executor.js';
+export { createEvmExecutor, createEvmWallet, getEvmKeysDir } from './evm-executor.js';
+export type { EvmAccount, EvmClients } from './evm-executor.js';
 
 // Config utilities (lower-level)
 export {
@@ -78,7 +83,6 @@ export type {
   BridgeProvider,
   BridgeParams,
   BridgeResult,
-  EvmTxExecutor,
   AllSetChainConfig,
   AllSetTokenInfo,
   SendToFastParams,
@@ -89,6 +93,5 @@ export type {
 export type { Intent } from './intents.js';
 
 export type { EvmSignResult } from './bridge.js';
-export type { EvmWallet } from './evm-executor.js';
 export type { NetworkConfig, ChainConfig, TokenConfig, AllNetworksConfig } from './config.js';
 export type { AllSetProviderOptions } from './provider.js';

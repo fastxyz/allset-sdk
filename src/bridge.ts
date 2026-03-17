@@ -14,6 +14,7 @@ import { FastError } from '@fastxyz/sdk';
 import type { BridgeParams, BridgeResult, AllSetChainConfig, AllSetTokenInfo, ExecuteIntentParams } from './types.js';
 import { getNetworkConfig, getChainConfig, getTokenConfig, type ChainConfig, type TokenConfig } from './config.js';
 import { IntentAction, type Intent, buildTransferIntent } from './intents.js';
+import { ERC20_ABI, type EvmClients } from './evm-executor.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -147,6 +148,69 @@ const BRIDGE_DEPOSIT_ABI = [{
   outputs: [],
   stateMutability: 'payable' as const,
 }];
+
+// ─── EVM Transaction Helpers ──────────────────────────────────────────────────
+
+/**
+ * Send a transaction using the wallet client.
+ */
+async function sendTx(
+  clients: EvmClients,
+  tx: { to: string; data: string; value: string; gas?: string },
+): Promise<{ txHash: string; status: 'success' | 'reverted' }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const walletClient = clients.walletClient as any;
+  const hash = await walletClient.sendTransaction({
+    to: tx.to as `0x${string}`,
+    data: tx.data as `0x${string}`,
+    value: BigInt(tx.value),
+    gas: tx.gas ? BigInt(tx.gas) : undefined,
+  });
+  const receipt = await clients.publicClient.waitForTransactionReceipt({ hash });
+  return {
+    txHash: hash,
+    status: receipt.status === 'success' ? 'success' : 'reverted',
+  };
+}
+
+/**
+ * Check ERC20 allowance.
+ */
+async function checkAllowance(
+  clients: EvmClients,
+  token: string,
+  spender: string,
+  owner: string,
+): Promise<bigint> {
+  const allowance = await clients.publicClient.readContract({
+    address: token as `0x${string}`,
+    abi: ERC20_ABI,
+    functionName: 'allowance',
+    args: [owner as `0x${string}`, spender as `0x${string}`],
+  });
+  return allowance;
+}
+
+/**
+ * Approve ERC20 spending.
+ */
+async function approveErc20(
+  clients: EvmClients,
+  token: string,
+  spender: string,
+  amount: string,
+): Promise<string> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const walletClient = clients.walletClient as any;
+  const hash = await walletClient.writeContract({
+    address: token as `0x${string}`,
+    abi: ERC20_ABI,
+    functionName: 'approve',
+    args: [spender as `0x${string}`, BigInt(amount)],
+  });
+  await clients.publicClient.waitForTransactionReceipt({ hash });
+  return hash;
+}
 
 function resolveExternalAddress(
   intents: Intent[],
@@ -305,12 +369,12 @@ async function handleDeposit(
   network: 'testnet' | 'mainnet' = DEFAULT_NETWORK,
   provider?: BridgeProviderConfig,
 ): Promise<BridgeResult> {
-  if (!params.evmExecutor) {
+  if (!params.evmClients) {
     throw new FastError(
       'INVALID_PARAMS',
-      'AllSet deposit (EVM → Fast) requires evmExecutor',
+      'AllSet deposit (EVM → Fast) requires evmClients',
       {
-        note: 'Provide an evmExecutor created with createEvmExecutor().\n  Example: const executor = createEvmExecutor(privateKey, rpcUrl, chainId)',
+        note: 'Provide evmClients created with createEvmExecutor().\n  Example: const account = createEvmWallet(path); const clients = createEvmExecutor(account, rpcUrl, chainId)',
       },
     );
   }
@@ -368,7 +432,7 @@ async function handleDeposit(
   let txHash: string;
 
   if (tokenInfo.isNative) {
-    const receipt = await params.evmExecutor.sendTx({
+    const receipt = await sendTx(params.evmClients, {
       to: chainConfig.bridgeContract,
       data: calldata,
       value: params.amount,
@@ -385,20 +449,22 @@ async function handleDeposit(
     txHash = receipt.txHash;
   } else {
     const requiredAmount = BigInt(params.amount);
-    const currentAllowance = await params.evmExecutor.checkAllowance(
+    const currentAllowance = await checkAllowance(
+      params.evmClients,
       tokenInfo.evmAddress,
       chainConfig.bridgeContract,
       params.senderAddress,
     );
     if (currentAllowance < requiredAmount) {
-      await params.evmExecutor.approveErc20(
+      await approveErc20(
+        params.evmClients,
         tokenInfo.evmAddress,
         chainConfig.bridgeContract,
         params.amount,
       );
     }
 
-    const receipt = await params.evmExecutor.sendTx({
+    const receipt = await sendTx(params.evmClients, {
       to: chainConfig.bridgeContract,
       data: calldata,
       value: '0',

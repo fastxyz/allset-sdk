@@ -100,13 +100,17 @@ test('AllSetProvider configPath drives sendToFast execution', async (t) => {
   const allset = new AllSetProvider({ network: 'testnet', configPath });
   let sentTx: { to: string; data: string; value: string } | undefined;
 
-  const mockExecutor = {
-    sendTx: async (tx: { to: string; data: string; value: string }) => {
-      sentTx = tx;
-      return { txHash: '0xcustom', status: 'success' as const };
+  const mockClients = {
+    walletClient: {
+      sendTransaction: async (tx: { to: string; data: string; value: bigint }) => {
+        sentTx = { to: tx.to, data: tx.data, value: tx.value.toString() };
+        return '0xcustom';
+      },
     },
-    checkAllowance: async () => 1_000_000n,
-    approveErc20: async () => '0xapprove',
+    publicClient: {
+      waitForTransactionReceipt: async () => ({ status: 'success' }),
+      readContract: async () => 1_000_000n,
+    },
   };
 
   const result = await allset.sendToFast({
@@ -115,7 +119,7 @@ test('AllSetProvider configPath drives sendToFast execution', async (t) => {
     amount: '1000000',
     from: EVM_ADDRESS,
     to: FAST_ADDRESS,
-    evmExecutor: mockExecutor,
+    evmClients: mockClients as any,
   });
 
   assert.equal(result.txHash, '0xcustom');
@@ -127,7 +131,7 @@ test('AllSetProvider configPath drives sendToFast execution', async (t) => {
 // sendToFast Tests
 // ---------------------------------------------------------------------------
 
-test('sendToFast without evmExecutor is rejected', async () => {
+test('sendToFast without evmClients is rejected', async () => {
   const allset = new AllSetProvider({ network: 'testnet' });
   
   await assert.rejects(
@@ -137,7 +141,7 @@ test('sendToFast without evmExecutor is rejected', async () => {
       amount: '1000000',
       from: '0xsender',
       to: 'fast1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq0l98cr',
-      evmExecutor: undefined as any,
+      evmClients: undefined as any,
     }),
     (error: unknown) => {
       assert.equal((error as { code?: string }).code, 'INVALID_PARAMS');
@@ -149,10 +153,14 @@ test('sendToFast without evmExecutor is rejected', async () => {
 test('sendToFast with unsupported chain is rejected', async () => {
   const allset = new AllSetProvider({ network: 'testnet' });
   
-  const mockExecutor = {
-    sendTx: async () => ({ txHash: '0x123', status: 'success' as const }),
-    checkAllowance: async () => BigInt(0),
-    approveErc20: async () => '0x123',
+  const mockClients = {
+    walletClient: {
+      sendTransaction: async () => '0x123',
+    },
+    publicClient: {
+      waitForTransactionReceipt: async () => ({ status: 'success' }),
+      readContract: async () => 0n,
+    },
   };
   
   await assert.rejects(
@@ -162,7 +170,7 @@ test('sendToFast with unsupported chain is rejected', async () => {
       amount: '1000000',
       from: '0xsender',
       to: 'fast1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq0l98cr',
-      evmExecutor: mockExecutor,
+      evmClients: mockClients as any,
     }),
     (error: unknown) => {
       assert.equal((error as { code?: string }).code, 'UNSUPPORTED_OPERATION');
@@ -348,48 +356,128 @@ test('executeIntent rejects intents without an EVM target unless externalAddress
 // EVM Executor Tests
 // ---------------------------------------------------------------------------
 
-test('createEvmExecutor rejects unsupported chain ids', () => {
+test('createEvmExecutor rejects unsupported chain ids', (t) => {
+  const tempDir = mkdtempSync(join(tmpdir(), 'allset-sdk-evm-'));
+  t.after(() => rmSync(tempDir, { recursive: true, force: true }));
+
+  const keyfile = join(tempDir, 'wallet.json');
+  writeFileSync(keyfile, JSON.stringify({ privateKey: '11'.repeat(32) }));
+
+  const account = createEvmWallet(keyfile);
   assert.throws(
-    () => createEvmExecutor(`0x${'11'.repeat(32)}`, 'http://localhost:8545', 1),
+    () => createEvmExecutor(account, 'http://localhost:8545', 1),
     /Unsupported EVM chain ID/,
   );
+});
+
+test('createEvmExecutor returns walletClient and publicClient', (t) => {
+  const tempDir = mkdtempSync(join(tmpdir(), 'allset-sdk-evm-'));
+  t.after(() => rmSync(tempDir, { recursive: true, force: true }));
+
+  const keyfile = join(tempDir, 'wallet.json');
+  writeFileSync(keyfile, JSON.stringify({ privateKey: '22'.repeat(32) }));
+
+  const account = createEvmWallet(keyfile);
+
+  // Should not throw when passing Account
+  const clients = createEvmExecutor(account, 'http://localhost:8545', 421614);
+
+  // Verify clients were created
+  assert.ok(clients.walletClient, 'should have walletClient');
+  assert.ok(clients.publicClient, 'should have publicClient');
+  assert.ok(typeof clients.walletClient.sendTransaction === 'function', 'walletClient should have sendTransaction');
+  assert.ok(typeof clients.publicClient.readContract === 'function', 'publicClient should have readContract');
 });
 
 // ---------------------------------------------------------------------------
 // EVM Wallet Tests
 // ---------------------------------------------------------------------------
 
-test('createEvmWallet generates valid wallet', () => {
-  const wallet = createEvmWallet();
+test('createEvmWallet generates new wallet when no args', () => {
+  const account = createEvmWallet();
   
-  // Check privateKey format
-  assert.ok(wallet.privateKey.startsWith('0x'), 'privateKey should start with 0x');
-  assert.equal(wallet.privateKey.length, 66, 'privateKey should be 66 chars (0x + 64 hex)');
+  // Should return an Account-compatible object with privateKey
+  assert.ok(account.address.startsWith('0x'), 'address should start with 0x');
+  assert.equal(account.address.length, 42, 'address should be 42 chars');
+  assert.ok(typeof account.signMessage === 'function', 'should have signMessage method');
+  assert.ok(account.privateKey.startsWith('0x'), 'privateKey should start with 0x');
+  assert.equal(account.privateKey.length, 66, 'privateKey should be 66 chars');
+  assert.equal(createEvmWallet(account.privateKey).address, account.address, 'privateKey should recreate the same address');
   
-  // Check address format
-  assert.ok(wallet.address.startsWith('0x'), 'address should start with 0x');
-  assert.equal(wallet.address.length, 42, 'address should be 42 chars (0x + 40 hex)');
-  
-  // Check that two wallets are different
-  const wallet2 = createEvmWallet();
-  assert.notEqual(wallet.privateKey, wallet2.privateKey, 'should generate unique keys');
-  assert.notEqual(wallet.address, wallet2.address, 'should generate unique addresses');
+  // Two calls should generate different wallets
+  const account2 = createEvmWallet();
+  assert.notEqual(account.address, account2.address, 'should generate unique addresses');
+  assert.notEqual(account.privateKey, account2.privateKey, 'should generate unique private keys');
 });
 
-test('createEvmWallet derives address from provided privateKey', () => {
-  // Generate a wallet first
-  const original = createEvmWallet();
+test('createEvmWallet derives account from private key', () => {
+  const privateKey = `0x${'55'.repeat(32)}`;
+  const account = createEvmWallet(privateKey);
   
-  // Derive from the same private key
-  const derived = createEvmWallet(original.privateKey);
+  // Should return an Account-compatible object with derived address
+  assert.ok(account.address.startsWith('0x'), 'address should start with 0x');
+  assert.equal(account.address.length, 42, 'address should be 42 chars');
+  assert.equal(account.privateKey, privateKey, 'privateKey should be preserved');
   
-  // Should produce the same address
-  assert.equal(derived.privateKey, original.privateKey, 'privateKey should match');
-  assert.equal(derived.address, original.address, 'address should match');
+  // Same key should produce same address
+  const account2 = createEvmWallet(privateKey);
+  assert.equal(account.address, account2.address, 'same key should produce same address');
   
   // Also works without 0x prefix
-  const derivedWithoutPrefix = createEvmWallet(original.privateKey.slice(2));
-  assert.equal(derivedWithoutPrefix.address, original.address, 'address should match without 0x prefix');
+  const account3 = createEvmWallet('55'.repeat(32));
+  assert.equal(account.address, account3.address, 'should work without 0x prefix');
+});
+
+test('createEvmWallet loads account from keyfile', (t) => {
+  const tempDir = mkdtempSync(join(tmpdir(), 'allset-sdk-evm-'));
+  t.after(() => rmSync(tempDir, { recursive: true, force: true }));
+
+  const privateKey = '33'.repeat(32);
+  const keyfile = join(tempDir, 'wallet.json');
+  writeFileSync(keyfile, JSON.stringify({ privateKey, address: '0xOptionalReference' }));
+
+  const account = createEvmWallet(keyfile);
+
+  // Should return an Account-compatible object
+  assert.ok(account.address.startsWith('0x'), 'address should start with 0x');
+  assert.equal(account.address.length, 42, 'address should be 42 chars');
+  assert.ok(typeof account.signMessage === 'function', 'should have signMessage method');
+  assert.ok(typeof account.signTransaction === 'function', 'should have signTransaction method');
+  assert.equal(account.privateKey, `0x${privateKey}`, 'privateKey should be normalized from keyfile');
+});
+
+test('createEvmWallet handles 0x-prefixed privateKey in keyfile', (t) => {
+  const tempDir = mkdtempSync(join(tmpdir(), 'allset-sdk-evm-'));
+  t.after(() => rmSync(tempDir, { recursive: true, force: true }));
+
+  const privateKey = `0x${'44'.repeat(32)}`;
+  const keyfile = join(tempDir, 'wallet.json');
+  writeFileSync(keyfile, JSON.stringify({ privateKey }));
+
+  const account = createEvmWallet(keyfile);
+
+  assert.ok(account.address.startsWith('0x'), 'should derive address');
+  assert.equal(account.privateKey, privateKey, 'should preserve 0x-prefixed privateKey');
+});
+
+test('createEvmWallet throws for missing keyfile', () => {
+  assert.throws(
+    () => createEvmWallet('/nonexistent/path/wallet.json'),
+    /Wallet file not found/,
+  );
+});
+
+test('createEvmWallet throws for missing privateKey in keyfile', (t) => {
+  const tempDir = mkdtempSync(join(tmpdir(), 'allset-sdk-evm-'));
+  t.after(() => rmSync(tempDir, { recursive: true, force: true }));
+
+  const keyfile = join(tempDir, 'wallet.json');
+  writeFileSync(keyfile, JSON.stringify({ address: '0x123' })); // no privateKey
+
+  assert.throws(
+    () => createEvmWallet(keyfile),
+    /missing privateKey/,
+  );
 });
 
 // ---------------------------------------------------------------------------
