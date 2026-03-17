@@ -106,6 +106,7 @@ await allset.executeIntent({
 |---------|-------|--------|
 | Testnet | Arbitrum Sepolia | ✅ |
 | Testnet | Ethereum Sepolia | ✅ |
+| Testnet | Base (mainnet chain) | ✅ |
 | Mainnet | Coming soon | 🔜 |
 
 ## Documentation

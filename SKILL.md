@@ -154,8 +154,8 @@ If you change code in this repo:
 ## Current Support Matrix
 
 - Networks: `testnet` only (mainnet placeholder)
-- Chains: `ethereum` (Sepolia), `arbitrum` (Sepolia)
-- Tokens: USDC, fastUSDC
+- Chains: `ethereum` (Sepolia), `arbitrum` (Sepolia), `base` (mainnet, connected to testnet)
+- Tokens: USDC, fastUSDC, testUSDC
 
 ## API Reference
 
