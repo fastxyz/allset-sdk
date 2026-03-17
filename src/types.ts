@@ -2,16 +2,7 @@
  * types.ts — AllSet SDK types
  */
 
-export interface EvmTxExecutor {
-  sendTx(tx: {
-    to: string;
-    data: string;
-    value: string;
-    gas?: string;
-  }): Promise<{ txHash: string; status: 'success' | 'reverted' }>;
-  checkAllowance(token: string, spender: string, owner: string): Promise<bigint>;
-  approveErc20(token: string, spender: string, amount: string): Promise<string>;
-}
+import type { EvmClients } from './evm-executor.js';
 
 export interface FastWalletLike {
   /** Sender Fast address (fast1...) */
@@ -43,7 +34,8 @@ export interface BridgeParams {
   amount: string;
   senderAddress: string;
   receiverAddress: string;
-  evmExecutor?: EvmTxExecutor;
+  /** EVM clients from createEvmExecutor() — required for deposits (EVM → Fast) */
+  evmClients?: EvmClients;
   /** Compatible Fast wallet — required for withdrawals (Fast → EVM) */
   fastWallet?: FastWalletLike;
 }
@@ -68,8 +60,8 @@ export interface SendToFastParams {
   from: string;
   /** Receiver's Fast address (fast1...) */
   to: string;
-  /** EVM executor from createEvmExecutor() */
-  evmExecutor: EvmTxExecutor;
+  /** EVM clients from createEvmExecutor() */
+  evmClients: EvmClients;
 }
 
 /**

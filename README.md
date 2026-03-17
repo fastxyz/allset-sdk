@@ -58,23 +58,69 @@ import {
 const fastProvider = new FastProvider({ network: 'testnet' });
 const allset = new AllSetProvider({ network: 'testnet' });
 const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);
-const evmWallet = createEvmWallet('~/.allset/.evm/keys/default.json');
 
-const evmExecutor = createEvmExecutor(
-  evmWallet.privateKey,
-  'https://sepolia-rollup.arbitrum.io/rpc',
-  421614,
-);
+// Create EVM account
+const account = createEvmWallet('~/.evm/keys/default.json');
+// Or: const account = createEvmWallet('0xprivateKey...');
+// Or: const account = createEvmWallet(); // persist account.privateKey if generated
 
+// Create EVM clients
+const evmClients = createEvmExecutor(account, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
+
+// Deposit: EVM → Fast
 await allset.sendToFast({
   chain: 'arbitrum',
   token: 'USDC',
   amount: '1000000',
-  from: evmWallet.address,
+  from: account.address,
   to: fastWallet.address,
-  evmExecutor,
+  evmClients,
+});
+
+// Withdraw: Fast → EVM
+await allset.sendToExternal({
+  chain: 'arbitrum',
+  token: 'fastUSDC',
+  amount: '1000000',
+  from: fastWallet.address,
+  to: account.address,
+  fastWallet,
 });
 ```
+
+## createEvmWallet
+
+Returns an Account-compatible object with viem signing methods and `privateKey`.
+
+```ts
+// Generate new wallet
+const generatedAccount = createEvmWallet();
+console.log(generatedAccount.privateKey); // persist this if you generated it
+
+// Derive from private key
+const derivedAccount = createEvmWallet('0x1234...64hexchars');
+
+// Load from keyfile
+const keyfileAccount = createEvmWallet('~/.evm/keys/default.json');
+```
+
+**Keyfile format:**
+```json
+{
+  "privateKey": "abc123...64hexchars",
+  "address": "0x..." // optional, for reference
+}
+```
+
+## createEvmExecutor
+
+Returns `{ walletClient, publicClient }` for EVM operations.
+
+```ts
+const { walletClient, publicClient } = createEvmExecutor(account, rpcUrl, chainId);
+```
+
+Accepts viem `Account` values, including the objects returned by `createEvmWallet()`.
 
 ### Pure intent builders
 
@@ -92,12 +138,30 @@ const intents = [
 ];
 ```
 
+## Advanced: Custom Intents
+
+```ts
+import { buildExecuteIntent, buildTransferIntent } from '@fastxyz/allset-sdk';
+
+await allset.executeIntent({
+  chain: 'arbitrum',
+  fastWallet,
+  token: 'fastUSDC',
+  amount: '1000000',
+  intents: [
+    buildTransferIntent(USDC_ADDRESS, '0xRecipient'),
+    buildExecuteIntent(CONTRACT_ADDRESS, '0xabcdef'),
+  ],
+});
+```
+
 ## Supported Networks
 
 | Network | Chain | Status |
 | --- | --- | --- |
 | Testnet | Arbitrum Sepolia | ✅ |
 | Testnet | Ethereum Sepolia | ✅ |
+| Testnet | Base (mainnet chain) | ✅ |
 | Mainnet | Coming soon | 🔜 |
 
 ## Migration

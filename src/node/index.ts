@@ -11,7 +11,6 @@ export {
 export {
   createEvmExecutor,
   createEvmWallet,
-  saveEvmWallet,
   getEvmKeysDir,
 } from '../evm-executor.js';
 
@@ -27,7 +26,6 @@ export type {
   BridgeProvider,
   BridgeParams,
   BridgeResult,
-  EvmTxExecutor,
   FastWalletLike,
   AllSetChainConfig,
   AllSetTokenInfo,
@@ -38,7 +36,7 @@ export type {
 
 export type { Intent } from '../intents.js';
 export type { EvmSignResult } from '../bridge.js';
-export type { EvmWallet } from '../evm-executor.js';
+export type { EvmAccount, EvmClients } from '../evm-executor.js';
 export type { NetworkConfig, ChainConfig, TokenConfig, AllNetworksConfig } from '../config.js';
 export type { AllSetProviderOptions } from '../provider.js';
 

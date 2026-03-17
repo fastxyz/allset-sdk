@@ -14,6 +14,7 @@ import type { BridgeParams, BridgeResult, AllSetChainConfig, AllSetTokenInfo, Ex
 import { getNetworkConfig, getChainConfig, getTokenConfig, type ChainConfig, type TokenConfig } from './config.js';
 import { buildDepositTransactionFromRoute } from './core/deposit.js';
 import { IntentAction, type Intent, buildTransferIntent } from './intents.js';
+import { ERC20_ABI, type EvmClients } from './evm-executor.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -130,6 +131,58 @@ function hexToUint8Array(hex: string): Uint8Array {
   return bytes;
 }
 
+// ─── EVM Transaction Helpers ──────────────────────────────────────────────────
+async function sendTx(
+  clients: EvmClients,
+  tx: { to: string; data: string; value: string; gas?: string },
+): Promise<{ txHash: string; status: 'success' | 'reverted' }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const walletClient = clients.walletClient as any;
+  const hash = await walletClient.sendTransaction({
+    to: tx.to as `0x${string}`,
+    data: tx.data as `0x${string}`,
+    value: BigInt(tx.value),
+    gas: tx.gas ? BigInt(tx.gas) : undefined,
+  });
+  const receipt = await clients.publicClient.waitForTransactionReceipt({ hash });
+  return {
+    txHash: hash,
+    status: receipt.status === 'success' ? 'success' : 'reverted',
+  };
+}
+
+async function checkAllowance(
+  clients: EvmClients,
+  token: string,
+  spender: string,
+  owner: string,
+): Promise<bigint> {
+  const allowance = await clients.publicClient.readContract({
+    address: token as `0x${string}`,
+    abi: ERC20_ABI,
+    functionName: 'allowance',
+    args: [owner as `0x${string}`, spender as `0x${string}`],
+  });
+  return allowance;
+}
+
+async function approveErc20(
+  clients: EvmClients,
+  token: string,
+  spender: string,
+  amount: string,
+): Promise<string> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const walletClient = clients.walletClient as any;
+  const hash = await walletClient.writeContract({
+    address: token as `0x${string}`,
+    abi: ERC20_ABI,
+    functionName: 'approve',
+    args: [spender as `0x${string}`, BigInt(amount)],
+  });
+  await clients.publicClient.waitForTransactionReceipt({ hash });
+  return hash;
+}
 function resolveExternalAddress(
   intents: Intent[],
   externalAddressOverride?: string,
@@ -255,7 +308,7 @@ export async function executeBridge(params: BridgeParams, provider?: BridgeProvi
     if (!isDeposit && !isWithdraw) {
       throw new FastError(
         'UNSUPPORTED_OPERATION',
-        `AllSet only supports bridging between Fast network and EVM chains (ethereum, arbitrum). Got: ${params.fromChain} → ${params.toChain}`,
+        `AllSet only supports bridging between Fast network and configured EVM chains (${getSupportedChains(network, provider).join(', ') || 'none'}). Got: ${params.fromChain} → ${params.toChain}`,
         {
           note: 'Use fromChain: "fast" for withdrawals, or toChain: "fast" for deposits.\n  Example: await allset.bridge({ fromChain: "ethereum", toChain: "fast", fromToken: "USDC", toToken: "fastUSDC", amount: "1000000", senderAddress: "0x...", receiverAddress: "fast1..." })',
         },
@@ -287,12 +340,12 @@ async function handleDeposit(
   network: 'testnet' | 'mainnet' = DEFAULT_NETWORK,
   provider?: BridgeProviderConfig,
 ): Promise<BridgeResult> {
-  if (!params.evmExecutor) {
+  if (!params.evmClients) {
     throw new FastError(
       'INVALID_PARAMS',
-      'AllSet deposit (EVM → Fast) requires evmExecutor',
+      'AllSet deposit (EVM → Fast) requires evmClients',
       {
-        note: 'Provide an evmExecutor created with createEvmExecutor().\n  Example: const executor = createEvmExecutor(privateKey, rpcUrl, chainId)',
+        note: 'Provide evmClients created with createEvmExecutor().\n  Example: const account = createEvmWallet(path); const clients = createEvmExecutor(account, rpcUrl, chainId)',
       },
     );
   }
@@ -303,7 +356,7 @@ async function handleDeposit(
       'UNSUPPORTED_OPERATION',
       `AllSet does not support EVM chain "${params.fromChain}". Supported: ${getSupportedChains(network, provider).join(', ')}`,
       {
-        note: 'Use "ethereum" or "arbitrum" as the source chain for AllSet deposits.',
+        note: 'Use one of the configured EVM chains as the source chain for AllSet deposits.',
       },
     );
   }
@@ -318,7 +371,7 @@ async function handleDeposit(
       'TOKEN_NOT_FOUND',
       `Cannot resolve token "${params.fromToken}" on AllSet for chain "${params.fromChain}".`,
       {
-        note: 'Supported tokens: USDC, fastUSDC.\n  Example: await allset.bridge({ fromChain: "arbitrum", toChain: "fast", fromToken: "USDC", toToken: "fastUSDC", amount: "1000000", senderAddress: "0x...", receiverAddress: "fast1..." })',
+        note: 'Supported tokens: USDC, fastUSDC, testUSDC.\n  Example: await allset.bridge({ fromChain: "arbitrum", toChain: "fast", fromToken: "USDC", toToken: "fastUSDC", amount: "1000000", senderAddress: "0x...", receiverAddress: "fast1..." })',
       },
     );
   }
@@ -353,7 +406,7 @@ async function handleDeposit(
   let txHash: string;
 
   if (depositPlan.route.isNative) {
-    const receipt = await params.evmExecutor.sendTx({
+    const receipt = await sendTx(params.evmClients, {
       to: depositPlan.to,
       data: depositPlan.data,
       value: depositPlan.value.toString(),
@@ -370,20 +423,22 @@ async function handleDeposit(
     txHash = receipt.txHash;
   } else {
     const requiredAmount = BigInt(params.amount);
-    const currentAllowance = await params.evmExecutor.checkAllowance(
+    const currentAllowance = await checkAllowance(
+      params.evmClients,
       depositPlan.route.tokenAddress,
       depositPlan.to,
       params.senderAddress,
     );
     if (currentAllowance < requiredAmount) {
-      await params.evmExecutor.approveErc20(
+      await approveErc20(
+        params.evmClients,
         depositPlan.route.tokenAddress,
         depositPlan.to,
         params.amount,
       );
     }
 
-    const receipt = await params.evmExecutor.sendTx({
+    const receipt = await sendTx(params.evmClients, {
       to: depositPlan.to,
       data: depositPlan.data,
       value: depositPlan.value.toString(),
@@ -466,7 +521,7 @@ export async function executeIntent(
       'UNSUPPORTED_OPERATION',
       `AllSet does not support EVM chain "${chain}". Supported: ${getSupportedChains(network, provider).join(', ')}`,
       {
-        note: 'Use "ethereum" or "arbitrum" as the chain.',
+        note: 'Use one of the configured EVM chains.',
       },
     );
   }
@@ -478,7 +533,7 @@ export async function executeIntent(
       'TOKEN_NOT_FOUND',
       `Cannot resolve token "${token}" on AllSet for chain "${chain}".`,
       {
-        note: 'Supported tokens: USDC, fastUSDC.',
+        note: 'Supported tokens: USDC, fastUSDC, testUSDC.',
       },
     );
   }
@@ -626,7 +681,7 @@ async function handleWithdraw(
       'TOKEN_NOT_FOUND',
       `Cannot resolve token "${params.fromToken}" on AllSet for destination chain "${params.toChain}".`,
       {
-        note: 'Supported tokens: USDC, fastUSDC.',
+        note: 'Supported tokens: USDC, fastUSDC, testUSDC.',
       },
     );
   }

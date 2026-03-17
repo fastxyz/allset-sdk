@@ -152,14 +152,15 @@ export class AllSetProvider {
 
   /**
    * Get token configuration for a chain.
-   * Handles fastUSDC -> USDC normalization.
+   * Handles fastUSDC/testUSDC -> USDC normalization.
    */
   getTokenConfig(chain: string, token: string): TokenConfig | null {
     const chainConfig = this.getChainConfig(chain);
     if (!chainConfig) return null;
 
-    // Normalize: fastUSDC on Fast maps to USDC on EVM
-    const normalizedToken = token.toLowerCase() === 'fastusdc' ? 'USDC' : token;
+    // Normalize: fastUSDC/testUSDC on Fast maps to USDC on EVM
+    const lowerToken = token.toLowerCase();
+    const normalizedToken = lowerToken === 'fastusdc' || lowerToken === 'testusdc' ? 'USDC' : token;
 
     return (
       chainConfig.tokens[normalizedToken] ??
@@ -193,22 +194,23 @@ export class AllSetProvider {
    *   amount: '1000000',
    *   from: '0xYourEvmAddress',
    *   to: 'fast1receiveraddress',
-   *   evmExecutor,
+   *   evmClients,
    * });
    * ```
    */
   async sendToFast(params: SendToFastParams): Promise<BridgeResult> {
+    const normalizedToken = params.token.toLowerCase();
     const { executeBridge } = await import('./bridge.js');
     return executeBridge({
       fromChain: params.chain,
       toChain: 'fast',
       fromToken: params.token,
-      toToken: params.token === 'USDC' ? 'fastUSDC' : params.token,
+      toToken: normalizedToken === 'usdc' ? 'fastUSDC' : params.token,
       fromDecimals: 6,
       amount: params.amount,
       senderAddress: params.from,
       receiverAddress: params.to,
-      evmExecutor: params.evmExecutor,
+      evmClients: params.evmClients,
     }, this);
   }
 
@@ -228,12 +230,13 @@ export class AllSetProvider {
    * ```
    */
   async sendToExternal(params: SendToExternalParams): Promise<BridgeResult> {
+    const normalizedToken = params.token.toLowerCase();
     const { executeBridge } = await import('./bridge.js');
     return executeBridge({
       fromChain: 'fast',
       toChain: params.chain,
       fromToken: params.token,
-      toToken: params.token === 'fastUSDC' ? 'USDC' : params.token,
+      toToken: normalizedToken === 'fastusdc' || normalizedToken === 'testusdc' ? 'USDC' : params.token,
       fromDecimals: 6,
       amount: params.amount,
       senderAddress: params.from,
