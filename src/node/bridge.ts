@@ -9,6 +9,7 @@
  */
 
 import { decodeAbiParameters, encodeAbiParameters } from 'viem';
+import { fastAddressToBytes } from '@fastxyz/sdk';
 import type { BridgeParams, BridgeResult, AllSetChainConfig, AllSetTokenInfo, ExecuteIntentParams } from './types.js';
 import { getNetworkConfig, getChainConfig, getTokenConfig, type ChainConfig, type TokenConfig } from './config.js';
 import { buildDepositTransactionFromRoute } from '../core/deposit.js';
@@ -601,10 +602,10 @@ export async function executeIntent(
 
   // Step 1: Transfer tokens to bridge address on Fast network
   const transferResult = await fastWallet.submit({
-    recipient: chainConfig.fastsetBridgeAddress,
     claim: {
       TokenTransfer: {
         token_id: tokenInfo.fastsetTokenId,
+        recipient: fastAddressToBytes(chainConfig.fastsetBridgeAddress),
         amount: amountToHex(amount),
         user_data: null,
       },
@@ -648,9 +649,8 @@ export async function executeIntent(
 
   const intentBytes = hexToUint8Array(intentClaimEncoded);
 
-  // Step 4: Submit intent claim to self
+  // Step 4: Submit intent claim on Fast
   const intentResult = await fastWallet.submit({
-    recipient: fastWallet.address,
     claim: {
       ExternalClaim: {
         claim: {

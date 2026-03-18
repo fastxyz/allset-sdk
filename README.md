@@ -18,6 +18,8 @@ npm install @fastxyz/allset-sdk @fastxyz/sdk
 
 `@fastxyz/sdk` is optional for pure helpers and EVM -> Fast deposits. Install it when you use `FastWallet` flows such as `sendToExternal(...)` or `executeIntent(...)`.
 
+Compatible Fast wallets must implement the current `submit({ claim })` contract from `@fastxyz/sdk`. Claims that need a recipient, such as `TokenTransfer`, must include it inside the claim payload.
+
 ## Entrypoints
 
 | Entrypoint | Use for | Browser-safe |
