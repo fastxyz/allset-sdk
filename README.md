@@ -4,17 +4,57 @@ Bridge tokens between Fast network and EVM chains.
 
 ## Installation
 
+Pure helpers only:
+
 ```bash
-npm install @fastxyz/sdk @fastxyz/allset-sdk
+npm install @fastxyz/allset-sdk
 ```
+
+Node execution APIs:
+
+```bash
+npm install @fastxyz/allset-sdk @fastxyz/sdk
+```
+
+## Entrypoints
+
+| Entrypoint | Use for | Browser-safe |
+| --- | --- | --- |
+| `@fastxyz/allset-sdk` | Pure deposit planners, intent builders, Fast address conversion | Yes |
+| `@fastxyz/allset-sdk/core` | Explicit alias of the root pure helper surface | Yes |
+| `@fastxyz/allset-sdk/browser` | Browser-safe frontend import path for pure helpers | Yes |
+| `@fastxyz/allset-sdk/node` | Provider, executor, wallet, bridge execution, file-backed config | No |
 
 ## Quick Start
 
+### Pure deposit planning
+
+```ts
+import { buildDepositTransaction } from '@fastxyz/allset-sdk';
+
+const plan = buildDepositTransaction({
+  network: 'testnet',
+  chain: 'arbitrum',
+  token: 'USDC',
+  amount: 1_000_000n,
+  receiver: 'fast1receiveraddress...',
+});
+
+console.log(plan.to);
+console.log(plan.data);
+console.log(plan.value);
+```
+
+### Node execution
+
 ```ts
 import { FastProvider, FastWallet } from '@fastxyz/sdk';
-import { AllSetProvider, createEvmExecutor, createEvmWallet } from '@fastxyz/allset-sdk';
+import {
+  AllSetProvider,
+  createEvmExecutor,
+  createEvmWallet,
+} from '@fastxyz/allset-sdk/node';
 
-// Setup
 const fastProvider = new FastProvider({ network: 'testnet' });
 const allset = new AllSetProvider({ network: 'testnet' });
 const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);
@@ -82,12 +122,27 @@ const { walletClient, publicClient } = createEvmExecutor(account, rpcUrl, chainI
 
 Accepts viem `Account` values, including the objects returned by `createEvmWallet()`.
 
+### Pure intent builders
+
+```ts
+import {
+  buildTransferIntent,
+  buildExecuteIntent,
+  buildDepositBackIntent,
+} from '@fastxyz/allset-sdk/browser';
+
+const intents = [
+  buildTransferIntent('0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d', '0xRecipient'),
+  buildExecuteIntent('0xContractAddress', '0xabcdef'),
+  buildDepositBackIntent('0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d', 'fast1receiveraddress...'),
+];
+```
+
 ## Advanced: Custom Intents
 
 ```ts
-import { buildTransferIntent, buildExecuteIntent } from '@fastxyz/allset-sdk';
+import { buildExecuteIntent, buildTransferIntent } from '@fastxyz/allset-sdk';
 
-// Execute custom intents on EVM chain
 await allset.executeIntent({
   chain: 'arbitrum',
   fastWallet,
@@ -95,7 +150,7 @@ await allset.executeIntent({
   amount: '1000000',
   intents: [
     buildTransferIntent(USDC_ADDRESS, '0xRecipient'),
-    // Add more intents: swaps, protocol calls, etc.
+    buildExecuteIntent(CONTRACT_ADDRESS, '0xabcdef'),
   ],
 });
 ```
@@ -103,11 +158,17 @@ await allset.executeIntent({
 ## Supported Networks
 
 | Network | Chain | Status |
-|---------|-------|--------|
+| --- | --- | --- |
 | Testnet | Arbitrum Sepolia | ✅ |
 | Testnet | Ethereum Sepolia | ✅ |
 | Testnet | Base (mainnet chain) | ✅ |
 | Mainnet | Coming soon | 🔜 |
+
+## Migration
+
+- Root imports are now pure-helper only.
+- Move provider, executor, wallet, and config imports to `@fastxyz/allset-sdk/node`.
+- Use the root, `core`, or `browser` entrypoints for deposit planning and intent building.
 
 ## Documentation
 

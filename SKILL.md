@@ -2,11 +2,11 @@
 name: allset-sdk
 description: >
   AllSet SDK for bridging tokens between Fast network and EVM chains. Use when the user asks to bridge
-  USDC or fastUSDC between Fast and Arbitrum/Ethereum, use sendToFast for deposits (EVM→Fast),
+  USDC or fastUSDC between Fast and supported EVM chains, use sendToFast for deposits (EVM→Fast),
   use sendToExternal for withdrawals (Fast→EVM), use executeIntent for advanced custom operations,
   or debug bridge errors such as TOKEN_NOT_FOUND, INVALID_ADDRESS, INVALID_PARAMS, UNSUPPORTED_OPERATION.
 metadata:
-  version: 0.1.3
+  version: 0.1.2
 ---
 
 # AllSet SDK
@@ -16,7 +16,13 @@ Use this skill for work in this repository or in another codebase that needs to 
 ## Prerequisites
 
 ```bash
-npm install @fastxyz/sdk @fastxyz/allset-sdk
+npm install @fastxyz/allset-sdk
+```
+
+For the Node bridge runtime APIs (`AllSetProvider`, `sendToFast`, `sendToExternal`, `executeIntent`, `evmSign`), also install:
+
+```bash
+npm install @fastxyz/sdk
 ```
 
 ## What This SDK Does
@@ -53,7 +59,7 @@ Do not start coding until you confirm the requested chain, token, and direction 
 ### 2. Setting up AllSetProvider
 
 ```ts
-import { AllSetProvider } from '@fastxyz/allset-sdk';
+import { AllSetProvider } from '@fastxyz/allset-sdk/node';
 
 // Default testnet
 const allset = new AllSetProvider();
@@ -69,14 +75,14 @@ const allset = new AllSetProvider({ configPath: './my-networks.json' });
 
 1. Custom path (if `configPath` provided)
 2. `~/.allset/networks.json` (user override)
-3. Bundled `data/networks.json` (package default)
+3. Embedded package defaults from `src/default-config.ts`
 
 ### 3. Setting up EVM Wallet
 
 The `createEvmWallet()` function returns an Account-compatible object with viem signing methods and `privateKey`.
 
 ```ts
-import { createEvmWallet } from '@fastxyz/allset-sdk';
+import { createEvmWallet } from '@fastxyz/allset-sdk/node';
 
 // Generate new wallet
 const generatedAccount = createEvmWallet();
@@ -114,7 +120,7 @@ const account = privateKeyToAccount('0xabc...');
 The `createEvmExecutor()` function returns `{ walletClient, publicClient }` for EVM operations.
 
 ```ts
-import { createEvmExecutor, createEvmWallet } from '@fastxyz/allset-sdk';
+import { createEvmExecutor, createEvmWallet } from '@fastxyz/allset-sdk/node';
 
 const account = createEvmWallet('~/.evm/keys/default.json');
 const evmClients = createEvmExecutor(account, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
@@ -130,7 +136,17 @@ const evmClients = createEvmExecutor(account, 'https://sepolia-rollup.arbitrum.i
 - **Withdrawal** requires `fastWallet` from `@fastxyz/sdk`
 - **Advanced intents** require `fastWallet` + array of `Intent` objects
 
-### 6. Validate after edits
+> **See the [Examples](#examples) section below for complete code samples of each execution path.**
+
+### 6. Respect implementation details
+
+- Network/chain/token defaults are in `src/default-config.ts`
+- Token resolution handles `fastUSDC` / `testUSDC` → `USDC` normalization
+- The package throws `FastError` from `@fastxyz/sdk`
+
+Do not invent additional token aliases, chain IDs, or mainnet support unless added to config.
+
+### 7. Validate after edits
 
 If you change code in this repo:
 
@@ -148,7 +164,7 @@ If you change code in this repo:
     └── default.json   # EVM wallet keyfiles (user-managed)
 
 ~/.allset/
-└── networks.json      # Custom network config (overrides bundled)
+└── networks.json      # Custom network config (overrides embedded defaults)
 ```
 
 ## Current Support Matrix
@@ -358,7 +374,7 @@ await allset.sendToExternal({
 
 ### `TOKEN_NOT_FOUND`
 
-- Token not configured in `data/networks.json`
+- Token not configured in `src/default-config.ts` or the active custom config
 - Supported: USDC, fastUSDC
 
 ### `UNSUPPORTED_OPERATION`
@@ -373,13 +389,14 @@ await allset.sendToExternal({
 
 ## Files To Read
 
-- `src/index.ts` — Public exports
-- `src/provider.ts` — AllSetProvider class
-- `src/bridge.ts` — Bridge logic, executeIntent
-- `src/evm-executor.ts` — EVM wallet and client utilities
+- `src/index.ts` — Pure helper exports
+- `src/node/index.ts` — Node runtime exports
+- `src/node/provider.ts` — AllSetProvider class
+- `src/node/bridge.ts` — Bridge logic, executeIntent
+- `src/node/evm-executor.ts` — EVM wallet and client utilities
+- `src/node/types.ts` — Runtime type definitions
 - `src/intents.ts` — Intent builders
-- `src/types.ts` — Type definitions
-- `data/networks.json` — Network configuration
+- `src/default-config.ts` — Bundled default network configuration
 
 ## Common Requests
 

@@ -8,12 +8,12 @@
  *   Withdraw (Fast → EVM): transfer on Fast network + submit ExternalClaim intent + POST to relayer
  */
 
-import { bech32m } from 'bech32';
-import { decodeAbiParameters, encodeAbiParameters, encodeFunctionData } from 'viem';
+import { decodeAbiParameters, encodeAbiParameters } from 'viem';
 import { FastError } from '@fastxyz/sdk';
 import type { BridgeParams, BridgeResult, AllSetChainConfig, AllSetTokenInfo, ExecuteIntentParams } from './types.js';
 import { getNetworkConfig, getChainConfig, getTokenConfig, type ChainConfig, type TokenConfig } from './config.js';
-import { IntentAction, type Intent, buildTransferIntent } from './intents.js';
+import { buildDepositTransactionFromRoute } from '../core/deposit.js';
+import { IntentAction, type Intent, buildTransferIntent } from '../intents.js';
 import { ERC20_ABI, type EvmClients } from './evm-executor.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -122,12 +122,6 @@ function resolveAllSetToken(
   return null;
 }
 
-function fastAddressToBytes32(address: string): `0x${string}` {
-  const { words } = bech32m.decode(address, 90);
-  const bytes = new Uint8Array(bech32m.fromWords(words));
-  return `0x${Buffer.from(bytes).toString('hex')}` as `0x${string}`;
-}
-
 function hexToUint8Array(hex: string): Uint8Array {
   const clean = hex.startsWith('0x') ? hex.slice(2) : hex;
   const bytes = new Uint8Array(clean.length / 2);
@@ -137,23 +131,7 @@ function hexToUint8Array(hex: string): Uint8Array {
   return bytes;
 }
 
-const BRIDGE_DEPOSIT_ABI = [{
-  type: 'function' as const,
-  name: 'deposit' as const,
-  inputs: [
-    { name: 'token', type: 'address' as const },
-    { name: 'amount', type: 'uint256' as const },
-    { name: 'receiver', type: 'bytes32' as const },
-  ],
-  outputs: [],
-  stateMutability: 'payable' as const,
-}];
-
 // ─── EVM Transaction Helpers ──────────────────────────────────────────────────
-
-/**
- * Send a transaction using the wallet client.
- */
 async function sendTx(
   clients: EvmClients,
   tx: { to: string; data: string; value: string; gas?: string },
@@ -173,9 +151,6 @@ async function sendTx(
   };
 }
 
-/**
- * Check ERC20 allowance.
- */
 async function checkAllowance(
   clients: EvmClients,
   token: string,
@@ -191,9 +166,6 @@ async function checkAllowance(
   return allowance;
 }
 
-/**
- * Approve ERC20 spending.
- */
 async function approveErc20(
   clients: EvmClients,
   token: string,
@@ -211,7 +183,6 @@ async function approveErc20(
   await clients.publicClient.waitForTransactionReceipt({ hash });
   return hash;
 }
-
 function resolveExternalAddress(
   intents: Intent[],
   externalAddressOverride?: string,
@@ -337,7 +308,7 @@ export async function executeBridge(params: BridgeParams, provider?: BridgeProvi
     if (!isDeposit && !isWithdraw) {
       throw new FastError(
         'UNSUPPORTED_OPERATION',
-        `AllSet only supports bridging between Fast network and EVM chains (ethereum, arbitrum). Got: ${params.fromChain} → ${params.toChain}`,
+        `AllSet only supports bridging between Fast network and configured EVM chains (${getSupportedChains(network, provider).join(', ') || 'none'}). Got: ${params.fromChain} → ${params.toChain}`,
         {
           note: 'Use fromChain: "fast" for withdrawals, or toChain: "fast" for deposits.\n  Example: await allset.bridge({ fromChain: "ethereum", toChain: "fast", fromToken: "USDC", toToken: "fastUSDC", amount: "1000000", senderAddress: "0x...", receiverAddress: "fast1..." })',
         },
@@ -385,7 +356,7 @@ async function handleDeposit(
       'UNSUPPORTED_OPERATION',
       `AllSet does not support EVM chain "${params.fromChain}". Supported: ${getSupportedChains(network, provider).join(', ')}`,
       {
-        note: 'Use "ethereum" or "arbitrum" as the source chain for AllSet deposits.',
+        note: 'Use one of the configured EVM chains as the source chain for AllSet deposits.',
       },
     );
   }
@@ -400,14 +371,27 @@ async function handleDeposit(
       'TOKEN_NOT_FOUND',
       `Cannot resolve token "${params.fromToken}" on AllSet for chain "${params.fromChain}".`,
       {
-        note: 'Supported tokens: USDC, fastUSDC.\n  Example: await allset.bridge({ fromChain: "arbitrum", toChain: "fast", fromToken: "USDC", toToken: "fastUSDC", amount: "1000000", senderAddress: "0x...", receiverAddress: "fast1..." })',
+        note: 'Supported tokens: USDC, fastUSDC, testUSDC.\n  Example: await allset.bridge({ fromChain: "arbitrum", toChain: "fast", fromToken: "USDC", toToken: "fastUSDC", amount: "1000000", senderAddress: "0x...", receiverAddress: "fast1..." })',
       },
     );
   }
 
-  let receiverBytes32: `0x${string}`;
+  let depositPlan: ReturnType<typeof buildDepositTransactionFromRoute>;
   try {
-    receiverBytes32 = fastAddressToBytes32(params.receiverAddress);
+    depositPlan = buildDepositTransactionFromRoute(
+      {
+        network,
+        chain: params.fromChain,
+        token: params.fromToken,
+        chainId: chainConfig.chainId,
+        bridgeAddress: chainConfig.bridgeContract as `0x${string}`,
+        tokenAddress: tokenInfo.evmAddress as `0x${string}`,
+        decimals: tokenInfo.decimals,
+        isNative: tokenInfo.isNative,
+      },
+      BigInt(params.amount),
+      params.receiverAddress,
+    );
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     throw new FastError(
@@ -419,23 +403,13 @@ async function handleDeposit(
     );
   }
 
-  const calldata = encodeFunctionData({
-    abi: BRIDGE_DEPOSIT_ABI,
-    functionName: 'deposit',
-    args: [
-      tokenInfo.evmAddress as `0x${string}`,
-      BigInt(params.amount),
-      receiverBytes32,
-    ],
-  });
-
   let txHash: string;
 
-  if (tokenInfo.isNative) {
+  if (depositPlan.route.isNative) {
     const receipt = await sendTx(params.evmClients, {
-      to: chainConfig.bridgeContract,
-      data: calldata,
-      value: params.amount,
+      to: depositPlan.to,
+      data: depositPlan.data,
+      value: depositPlan.value.toString(),
     });
     if (receipt.status === 'reverted') {
       throw new FastError(
@@ -451,23 +425,23 @@ async function handleDeposit(
     const requiredAmount = BigInt(params.amount);
     const currentAllowance = await checkAllowance(
       params.evmClients,
-      tokenInfo.evmAddress,
-      chainConfig.bridgeContract,
+      depositPlan.route.tokenAddress,
+      depositPlan.to,
       params.senderAddress,
     );
     if (currentAllowance < requiredAmount) {
       await approveErc20(
         params.evmClients,
-        tokenInfo.evmAddress,
-        chainConfig.bridgeContract,
+        depositPlan.route.tokenAddress,
+        depositPlan.to,
         params.amount,
       );
     }
 
     const receipt = await sendTx(params.evmClients, {
-      to: chainConfig.bridgeContract,
-      data: calldata,
-      value: '0',
+      to: depositPlan.to,
+      data: depositPlan.data,
+      value: depositPlan.value.toString(),
     });
     if (receipt.status === 'reverted') {
       throw new FastError(
@@ -516,7 +490,7 @@ export async function executeIntent(
       'INVALID_PARAMS',
       'executeIntent requires fastWallet',
       {
-        note: 'Provide a FastWallet from @fastxyz/sdk.\n  Example: const wallet = await FastWallet.fromKeyfile("~/.fast/keys/default.json", provider)',
+        note: 'Provide a compatible Fast wallet.\n  Example: const wallet = await FastWallet.fromKeyfile("~/.fast/keys/default.json", provider)',
       },
     );
   }
@@ -547,7 +521,7 @@ export async function executeIntent(
       'UNSUPPORTED_OPERATION',
       `AllSet does not support EVM chain "${chain}". Supported: ${getSupportedChains(network, provider).join(', ')}`,
       {
-        note: 'Use "ethereum" or "arbitrum" as the chain.',
+        note: 'Use one of the configured EVM chains.',
       },
     );
   }
@@ -559,7 +533,7 @@ export async function executeIntent(
       'TOKEN_NOT_FOUND',
       `Cannot resolve token "${token}" on AllSet for chain "${chain}".`,
       {
-        note: 'Supported tokens: USDC, fastUSDC.',
+        note: 'Supported tokens: USDC, fastUSDC, testUSDC.',
       },
     );
   }
@@ -693,7 +667,7 @@ async function handleWithdraw(
       'INVALID_PARAMS',
       'AllSet withdrawal (Fast → EVM) requires fastWallet',
       {
-        note: 'Provide a FastWallet from @fastxyz/sdk.\n  Example: const wallet = await FastWallet.fromKeyfile("~/.fast/keys/default.json", provider)',
+        note: 'Provide a compatible Fast wallet.\n  Example: const wallet = await FastWallet.fromKeyfile("~/.fast/keys/default.json", provider)',
       },
     );
   }
@@ -707,7 +681,7 @@ async function handleWithdraw(
       'TOKEN_NOT_FOUND',
       `Cannot resolve token "${params.fromToken}" on AllSet for destination chain "${params.toChain}".`,
       {
-        note: 'Supported tokens: USDC, fastUSDC.',
+        note: 'Supported tokens: USDC, fastUSDC, testUSDC.',
       },
     );
   }

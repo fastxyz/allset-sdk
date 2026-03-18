@@ -1,13 +1,8 @@
 /**
- * config.ts — Network configuration loader
- *
- * Loads bridge configuration from data/networks.json.
- * Supports testnet and mainnet configurations.
+ * config.ts — Embedded network configuration accessors
  */
 
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { DEFAULT_NETWORKS_CONFIG } from '../default-config.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -43,33 +38,17 @@ export interface AllNetworksConfig {
 
 let cachedConfig: AllNetworksConfig | null = null;
 
-function getDataDir(): string {
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = dirname(__filename);
-  // In dist/, go up one level to find data/
-  return join(__dirname, '..', 'data');
-}
-
 /**
  * Load the networks configuration.
- * Caches the result after first load.
+ * Caches a clone of the embedded default config after first load.
  */
 export function loadNetworksConfig(): AllNetworksConfig {
   if (cachedConfig) {
     return cachedConfig;
   }
 
-  const configPath = join(getDataDir(), 'networks.json');
-  
-  try {
-    const raw = readFileSync(configPath, 'utf-8');
-    cachedConfig = JSON.parse(raw) as AllNetworksConfig;
-    return cachedConfig;
-  } catch (err) {
-    throw new Error(
-      `Failed to load networks config from ${configPath}: ${err instanceof Error ? err.message : String(err)}`
-    );
-  }
+  cachedConfig = structuredClone(DEFAULT_NETWORKS_CONFIG);
+  return cachedConfig;
 }
 
 /**

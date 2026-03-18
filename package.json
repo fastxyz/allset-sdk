@@ -16,14 +16,25 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./core": {
+      "import": "./dist/core/index.js",
+      "types": "./dist/core/index.d.ts"
+    },
+    "./browser": {
+      "import": "./dist/browser/index.js",
+      "types": "./dist/browser/index.d.ts"
+    },
+    "./node": {
+      "import": "./dist/node/index.js",
+      "types": "./dist/node/index.d.ts"
     }
   },
   "files": [
-    "dist",
-    "data"
+    "dist"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "npm run clean && tsc",
     "clean": "rm -rf dist",
     "test": "node --import tsx --test tests/*.test.ts",
     "pack:dry-run": "node ./scripts/pack-dry-run.mjs",
@@ -55,10 +66,15 @@
     "viem": "^2.46.2"
   },
   "peerDependencies": {
-    "@fastxyz/sdk": ">=0.1.5"
+    "@fastxyz/sdk": ">=0.1.8"
+  },
+  "peerDependenciesMeta": {
+    "@fastxyz/sdk": {
+      "optional": true
+    }
   },
   "devDependencies": {
-    "@fastxyz/sdk": "^0.1.5",
+    "@fastxyz/sdk": "^0.1.8",
     "@types/node": "^22.19.11",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"

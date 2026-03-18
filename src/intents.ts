@@ -6,7 +6,7 @@
  */
 
 import { encodeAbiParameters } from 'viem';
-import { bech32m } from 'bech32';
+import { fastAddressToBytes32 } from './core/address.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -36,16 +36,6 @@ export interface Intent {
   payload: `0x${string}`;
   /** Native token value (ETH) to send, 0 for ERC-20 operations */
   value: bigint;
-}
-
-// ---------------------------------------------------------------------------
-// Helper Functions
-// ---------------------------------------------------------------------------
-
-function fastAddressToBytes32(address: string): `0x${string}` {
-  const { words } = bech32m.decode(address, 90);
-  const bytes = new Uint8Array(bech32m.fromWords(words));
-  return `0x${Buffer.from(bytes).toString('hex')}` as `0x${string}`;
 }
 
 // ---------------------------------------------------------------------------
