@@ -10,11 +10,13 @@ Pure helpers only:
 npm install @fastxyz/allset-sdk
 ```
 
-Node execution APIs:
+FastWallet-backed withdrawals and intent execution:
 
 ```bash
 npm install @fastxyz/allset-sdk @fastxyz/sdk
 ```
+
+`@fastxyz/sdk` is optional for pure helpers and EVM -> Fast deposits. Install it when you use `FastWallet` flows such as `sendToExternal(...)` or `executeIntent(...)`.
 
 ## Entrypoints
 

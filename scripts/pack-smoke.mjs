@@ -12,6 +12,7 @@ const npmEnv = {
   ...process.env,
   NPM_CONFIG_CACHE: process.env.NPM_CONFIG_CACHE ?? path.join(workspaceDir, '.npm-cache'),
 };
+const fastAddress = 'fast1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq0l98cr';
 
 let tarballPath = '';
 
@@ -62,13 +63,41 @@ try {
     ...String(manifest.name).split('/'),
   );
 
+  const exportSmokeScript = `
+const root = await import(${JSON.stringify(manifest.name)});
+const core = await import(${JSON.stringify(`${manifest.name}/core`)});
+const browser = await import(${JSON.stringify(`${manifest.name}/browser`)});
+const node = await import(${JSON.stringify(`${manifest.name}/node`)});
+if (typeof root.buildDepositTransaction !== "function") throw new Error("root buildDepositTransaction export missing");
+if (typeof core.resolveDepositRoute !== "function") throw new Error("core resolveDepositRoute export missing");
+if (typeof browser.buildTransferIntent !== "function") throw new Error("browser buildTransferIntent export missing");
+if ("AllSetProvider" in root) throw new Error("root should not export AllSetProvider");
+if ("createEvmExecutor" in browser) throw new Error("browser should not export createEvmExecutor");
+if (typeof node.createEvmExecutor !== "function") throw new Error("node createEvmExecutor export missing");
+if (typeof node.evmSign !== "function") throw new Error("node evmSign export missing");
+
+const allset = new node.AllSetProvider();
+if (typeof allset?.sendToFast !== "function") throw new Error("node AllSetProvider sendToFast missing");
+
+try {
+  await allset.sendToFast({
+    chain: "arbitrum",
+    token: "USDC",
+    amount: "1",
+    from: "0x1234567890123456789012345678901234567890",
+    to: ${JSON.stringify(fastAddress)},
+    evmClients: undefined,
+  });
+  throw new Error("sendToFast should reject without evmClients");
+} catch (error) {
+  if (error?.code !== "INVALID_PARAMS") {
+    throw error;
+  }
+}
+`;
   execFileSync(
     process.execPath,
-    [
-      '--input-type=module',
-      '--eval',
-      `const root = await import(${JSON.stringify(manifest.name)}); const core = await import(${JSON.stringify(`${manifest.name}/core`)}); const browser = await import(${JSON.stringify(`${manifest.name}/browser`)}); const node = await import(${JSON.stringify(`${manifest.name}/node`)}); if (typeof root.buildDepositTransaction !== "function") throw new Error("root buildDepositTransaction export missing"); if (typeof core.resolveDepositRoute !== "function") throw new Error("core resolveDepositRoute export missing"); if (typeof browser.buildTransferIntent !== "function") throw new Error("browser buildTransferIntent export missing"); if ("AllSetProvider" in root) throw new Error("root should not export AllSetProvider"); if ("createEvmExecutor" in browser) throw new Error("browser should not export createEvmExecutor"); const allset = new node.AllSetProvider(); if (typeof allset?.sendToFast !== "function") throw new Error("node AllSetProvider sendToFast missing"); if (typeof node.createEvmExecutor !== "function") throw new Error("node createEvmExecutor export missing"); if (typeof node.evmSign !== "function") throw new Error("node evmSign export missing");`,
-    ],
+    ['--input-type=module', '--eval', exportSmokeScript],
     {
       cwd: tempDir,
       stdio: 'inherit',
