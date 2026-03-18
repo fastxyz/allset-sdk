@@ -302,6 +302,7 @@ test('sendToFast without evmClients is rejected', async () => {
       evmClients: undefined as any,
     }),
     (error: unknown) => {
+      assert.equal((error as { name?: string }).name, 'FastError');
       assert.equal((error as { code?: string }).code, 'INVALID_PARAMS');
       return true;
     },

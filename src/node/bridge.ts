@@ -8,8 +8,8 @@
  *   Withdraw (Fast → EVM): transfer on Fast network + submit ExternalClaim intent + POST to relayer
  */
 
+import { createRequire } from 'node:module';
 import { decodeAbiParameters, encodeAbiParameters } from 'viem';
-import { FastError } from '@fastxyz/sdk';
 import type { BridgeParams, BridgeResult, AllSetChainConfig, AllSetTokenInfo, ExecuteIntentParams } from './types.js';
 import { getNetworkConfig, getChainConfig, getTokenConfig, type ChainConfig, type TokenConfig } from './config.js';
 import { buildDepositTransactionFromRoute } from '../core/deposit.js';
@@ -20,6 +20,54 @@ import { ERC20_ABI, type EvmClients } from './evm-executor.js';
 
 // Default network (can be overridden via environment variable)
 const DEFAULT_NETWORK = (process.env.ALLSET_NETWORK as 'testnet' | 'mainnet') || 'testnet';
+const nodeRequire = createRequire(import.meta.url);
+
+type FastErrorInstance = Error & {
+  code: string;
+  note: string;
+  toJSON(): { error: true; code: string; message: string; note: string };
+};
+
+type FastErrorConstructor = new (
+  code: string,
+  message: string,
+  opts?: { note?: string },
+) => FastErrorInstance;
+
+class LocalFastError extends Error {
+  code: string;
+  note: string;
+
+  constructor(code: string, message: string, opts?: { note?: string }) {
+    super(message);
+    this.name = 'FastError';
+    this.code = code;
+    this.note = opts?.note ?? '';
+  }
+
+  toJSON() {
+    return {
+      error: true as const,
+      code: this.code,
+      message: this.message,
+      note: this.note,
+    };
+  }
+}
+
+// Keep @fastxyz/sdk runtime-optional for deposit-only consumers.
+const FastError: FastErrorConstructor = (() => {
+  try {
+    const mod = nodeRequire('@fastxyz/sdk') as { FastError?: FastErrorConstructor };
+    if (typeof mod.FastError === 'function') {
+      return mod.FastError;
+    }
+  } catch {
+    // Fall back to a local error with the same public shape.
+  }
+
+  return LocalFastError;
+})();
 
 /**
  * Convert decimal amount string to hex for BCS serialization.
