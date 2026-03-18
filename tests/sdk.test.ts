@@ -7,6 +7,7 @@ import { encodeFunctionData } from 'viem';
 
 import * as browserEntry from '../src/browser/index.ts';
 import * as coreEntry from '../src/index.ts';
+import { DEFAULT_NETWORKS_CONFIG } from '../src/default-config.ts';
 import {
   IntentAction,
   buildDepositTransaction,
@@ -56,6 +57,13 @@ test('fastAddressToBytes32 converts a Fast receiver into bytes32', () => {
   assert.equal(
     fastAddressToBytes32(FAST_ADDRESS),
     '0x1c0c991ea4bc21608f48a7fea5b7c1b5a2d9fe0977db0df5d8ed4aa502716818',
+  );
+});
+
+test('fastAddressToBytes32 wraps invalid bech32 payloads in a Fast-address error', () => {
+  assert.throws(
+    () => fastAddressToBytes32('fast1invalid'),
+    /Invalid Fast address "fast1invalid"/,
   );
 });
 
@@ -118,6 +126,84 @@ test('buildDepositTransaction applies route overrides', () => {
   assert.equal(plan.to, '0x9999999999999999999999999999999999999999');
   assert.equal(plan.value, 0n);
   assert.ok(plan.data.startsWith('0x'));
+});
+
+test('buildDepositTransaction supports caller-supplied mainnet config for unbundled deployments', () => {
+  const plan = buildDepositTransaction({
+    network: 'mainnet',
+    chain: 'base',
+    token: 'fastUSDC',
+    amount: 1_000_000n,
+    receiver: FAST_ADDRESS,
+    networkConfig: {
+      chains: {
+        base: {
+          chainId: 8453,
+          bridgeContract: '0x9999999999999999999999999999999999999999',
+          tokens: {
+            USDC: {
+              evmAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+              decimals: 6,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  assert.equal(plan.chainId, 8453);
+  assert.equal(plan.to, '0x9999999999999999999999999999999999999999');
+  assert.equal(plan.route.token, 'USDC');
+  assert.equal(plan.route.tokenAddress, '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913');
+  assert.equal(plan.value, 0n);
+});
+
+test('bundled testnet endpoints match the current hosted environment', () => {
+  const { testnet } = DEFAULT_NETWORKS_CONFIG;
+
+  assert.equal(testnet.crossSignUrl, 'https://testnet.cross-sign.allset.fast.xyz');
+
+  assert.deepEqual(testnet.chains.ethereum, {
+    chainId: 11155111,
+    bridgeContract: '0x67C5f02df93f2144C6a4e4Fb48D92cE91Cfbc3A6',
+    fastBridgeAddress: 'fast1fxtkgpwcy7hnakw96gg7relph4wxx7ghrukm723p3l9adxuxljzsc6f958',
+    relayerUrl: 'https://testnet.allset.fast.xyz/ethereum-sepolia/relayer/relay',
+    tokens: {
+      USDC: {
+        evmAddress: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
+        fastTokenId: '9c52fe9465f57bc526c11aa0c048fd8709aa46abc06d15c80cbed9263d4d4df8',
+        decimals: 6,
+      },
+    },
+  });
+
+  assert.deepEqual(testnet.chains.arbitrum, {
+    chainId: 421614,
+    bridgeContract: '0x67C5f02df93f2144C6a4e4Fb48D92cE91Cfbc3A6',
+    fastBridgeAddress: 'fast1tkmtqxulhnzeeg9zhuwxy3x95wr7waytm9cq40ndf7tkuwwcc6jseg24j8',
+    relayerUrl: 'https://testnet.allset.fast.xyz/arbitrum-sepolia/relayer/relay',
+    tokens: {
+      USDC: {
+        evmAddress: '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d',
+        fastTokenId: '9c52fe9465f57bc526c11aa0c048fd8709aa46abc06d15c80cbed9263d4d4df8',
+        decimals: 6,
+      },
+    },
+  });
+
+  assert.deepEqual(testnet.chains.base, {
+    chainId: 8453,
+    bridgeContract: '0x41cE437493f2a9DDA9214aE7b3662175bBe54a6c',
+    fastBridgeAddress: 'fast1a4fza9xc8jcm7jp64a0ugtuyw3hkkmje02e8af9aaer4r0je4dpqz4uf58',
+    relayerUrl: 'https://testnet.allset.fast.xyz/base/relayer/relay',
+    tokens: {
+      USDC: {
+        evmAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+        fastTokenId: 'b4fdab846372740f747eb4b64ac0c22eaa159113f2d35b075027065fba419365',
+        decimals: 6,
+      },
+    },
+  });
 });
 
 test('resolveDepositRoute rejects unsupported routes', () => {
