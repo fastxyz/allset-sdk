@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { FastError as SdkFastError } from '@fastxyz/sdk';
 import { encodeFunctionData } from 'viem';
 
 import * as browserEntry from '../src/browser/index.ts';
@@ -302,8 +303,37 @@ test('sendToFast without evmClients is rejected', async () => {
       evmClients: undefined as any,
     }),
     (error: unknown) => {
+      assert.ok(error instanceof SdkFastError);
       assert.equal((error as { name?: string }).name, 'FastError');
       assert.equal((error as { code?: string }).code, 'INVALID_PARAMS');
+      return true;
+    },
+  );
+});
+
+test('executeBridge preserves upstream FastError instances', async () => {
+  const upstreamError = new SdkFastError('TX_FAILED', 'upstream failure', { note: 'keep identity' });
+  const fastWallet = {
+    address: FAST_ADDRESS,
+    submit: async () => {
+      throw upstreamError;
+    },
+  };
+
+  await assert.rejects(
+    () => executeBridge({
+      fromChain: 'fast',
+      toChain: 'arbitrum',
+      fromToken: 'fastUSDC',
+      toToken: 'USDC',
+      fromDecimals: 6,
+      amount: '1000000',
+      senderAddress: FAST_ADDRESS,
+      receiverAddress: EVM_ADDRESS,
+      fastWallet,
+    }),
+    (error: unknown) => {
+      assert.equal(error, upstreamError);
       return true;
     },
   );

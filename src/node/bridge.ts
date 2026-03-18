@@ -8,7 +8,6 @@
  *   Withdraw (Fast → EVM): transfer on Fast network + submit ExternalClaim intent + POST to relayer
  */
 
-import { createRequire } from 'node:module';
 import { decodeAbiParameters, encodeAbiParameters } from 'viem';
 import type { BridgeParams, BridgeResult, AllSetChainConfig, AllSetTokenInfo, ExecuteIntentParams } from './types.js';
 import { getNetworkConfig, getChainConfig, getTokenConfig, type ChainConfig, type TokenConfig } from './config.js';
@@ -20,12 +19,11 @@ import { ERC20_ABI, type EvmClients } from './evm-executor.js';
 
 // Default network (can be overridden via environment variable)
 const DEFAULT_NETWORK = (process.env.ALLSET_NETWORK as 'testnet' | 'mainnet') || 'testnet';
-const nodeRequire = createRequire(import.meta.url);
 
 type FastErrorInstance = Error & {
   code: string;
   note: string;
-  toJSON(): { error: true; code: string; message: string; note: string };
+  toJSON(): Record<string, unknown>;
 };
 
 type FastErrorConstructor = new (
@@ -55,19 +53,34 @@ class LocalFastError extends Error {
   }
 }
 
-// Keep @fastxyz/sdk runtime-optional for deposit-only consumers.
-const FastError: FastErrorConstructor = (() => {
-  try {
-    const mod = nodeRequire('@fastxyz/sdk') as { FastError?: FastErrorConstructor };
-    if (typeof mod.FastError === 'function') {
-      return mod.FastError;
-    }
-  } catch {
-    // Fall back to a local error with the same public shape.
-  }
+let sdkFastErrorPromise: Promise<FastErrorConstructor | null> | null = null;
 
-  return LocalFastError;
-})();
+// Keep @fastxyz/sdk runtime-optional for deposit-only consumers.
+async function loadFastErrorConstructor(): Promise<FastErrorConstructor | null> {
+  sdkFastErrorPromise ??= import('@fastxyz/sdk')
+    .then((mod) => (typeof mod.FastError === 'function' ? mod.FastError as FastErrorConstructor : null))
+    .catch(() => null);
+
+  return sdkFastErrorPromise;
+}
+
+async function createFastError(
+  code: string,
+  message: string,
+  opts?: { note?: string },
+): Promise<FastErrorInstance> {
+  const FastError = await loadFastErrorConstructor();
+  return FastError ? new FastError(code, message, opts) : new LocalFastError(code, message, opts);
+}
+
+function isFastError(err: unknown): err is FastErrorInstance {
+  return (
+    err instanceof Error &&
+    err.name === 'FastError' &&
+    typeof (err as { code?: unknown }).code === 'string' &&
+    typeof (err as { note?: unknown }).note === 'string'
+  );
+}
 
 /**
  * Convert decimal amount string to hex for BCS serialization.
@@ -309,7 +322,7 @@ export async function evmSign(
   });
 
   if (!res.ok) {
-    throw new FastError(
+    throw await createFastError(
       'TX_FAILED',
       `Cross-sign request failed: ${res.status}`,
       { note: 'The AllSet cross-sign service rejected the request.' },
@@ -322,7 +335,7 @@ export async function evmSign(
   };
 
   if (json.error) {
-    throw new FastError(
+    throw await createFastError(
       'TX_FAILED',
       `Cross-sign error: ${json.error.message}`,
       { note: 'The certificate could not be cross-signed.' },
@@ -330,7 +343,7 @@ export async function evmSign(
   }
 
   if (!json.result?.transaction || !json.result?.signature) {
-    throw new FastError(
+    throw await createFastError(
       'TX_FAILED',
       'Cross-sign returned invalid response',
       { note: 'Missing transaction or signature in response.' },
@@ -354,7 +367,7 @@ export async function executeBridge(params: BridgeParams, provider?: BridgeProvi
     const isWithdraw = params.fromChain === 'fast';
 
     if (!isDeposit && !isWithdraw) {
-      throw new FastError(
+      throw await createFastError(
         'UNSUPPORTED_OPERATION',
         `AllSet only supports bridging between Fast network and configured EVM chains (${getSupportedChains(network, provider).join(', ') || 'none'}). Got: ${params.fromChain} → ${params.toChain}`,
         {
@@ -369,9 +382,9 @@ export async function executeBridge(params: BridgeParams, provider?: BridgeProvi
 
     return await handleWithdraw(params, network, provider);
   } catch (err: unknown) {
-    if (err instanceof FastError) throw err;
+    if (isFastError(err)) throw err;
     const msg = err instanceof Error ? err.message : String(err);
-    throw new FastError(
+    throw await createFastError(
       'TX_FAILED',
       `AllSet bridge failed: ${msg}`,
       {
@@ -389,7 +402,7 @@ async function handleDeposit(
   provider?: BridgeProviderConfig,
 ): Promise<BridgeResult> {
   if (!params.evmClients) {
-    throw new FastError(
+    throw await createFastError(
       'INVALID_PARAMS',
       'AllSet deposit (EVM → Fast) requires evmClients',
       {
@@ -400,7 +413,7 @@ async function handleDeposit(
 
   const chainConfigRaw = resolveChainConfig(params.fromChain, network, provider);
   if (!chainConfigRaw) {
-    throw new FastError(
+    throw await createFastError(
       'UNSUPPORTED_OPERATION',
       `AllSet does not support EVM chain "${params.fromChain}". Supported: ${getSupportedChains(network, provider).join(', ')}`,
       {
@@ -415,7 +428,7 @@ async function handleDeposit(
     tokenInfo = resolveAllSetToken(params.toToken, params.fromChain, network, provider);
   }
   if (!tokenInfo) {
-    throw new FastError(
+    throw await createFastError(
       'TOKEN_NOT_FOUND',
       `Cannot resolve token "${params.fromToken}" on AllSet for chain "${params.fromChain}".`,
       {
@@ -442,7 +455,7 @@ async function handleDeposit(
     );
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    throw new FastError(
+    throw await createFastError(
       'INVALID_ADDRESS',
       `Failed to decode Fast network receiver address "${params.receiverAddress}": ${msg}`,
       {
@@ -460,7 +473,7 @@ async function handleDeposit(
       value: depositPlan.value.toString(),
     });
     if (receipt.status === 'reverted') {
-      throw new FastError(
+      throw await createFastError(
         'TX_FAILED',
         `AllSet deposit transaction reverted: ${receipt.txHash}`,
         {
@@ -492,7 +505,7 @@ async function handleDeposit(
       value: depositPlan.value.toString(),
     });
     if (receipt.status === 'reverted') {
-      throw new FastError(
+      throw await createFastError(
         'TX_FAILED',
         `AllSet deposit transaction reverted: ${receipt.txHash}`,
         {
@@ -534,7 +547,7 @@ export async function executeIntent(
   } = params;
 
   if (!fastWallet) {
-    throw new FastError(
+    throw await createFastError(
       'INVALID_PARAMS',
       'executeIntent requires fastWallet',
       {
@@ -544,7 +557,7 @@ export async function executeIntent(
   }
 
   if (!intents || intents.length === 0) {
-    throw new FastError(
+    throw await createFastError(
       'INVALID_PARAMS',
       'executeIntent requires at least one intent',
       {
@@ -554,7 +567,7 @@ export async function executeIntent(
   }
 
   if (externalAddressOverride && !externalAddressOverride.startsWith('0x')) {
-    throw new FastError(
+    throw await createFastError(
       'INVALID_PARAMS',
       'executeIntent externalAddress must be an EVM address',
       {
@@ -565,7 +578,7 @@ export async function executeIntent(
 
   const chainConfigRaw = resolveChainConfig(chain, network, provider);
   if (!chainConfigRaw) {
-    throw new FastError(
+    throw await createFastError(
       'UNSUPPORTED_OPERATION',
       `AllSet does not support EVM chain "${chain}". Supported: ${getSupportedChains(network, provider).join(', ')}`,
       {
@@ -577,7 +590,7 @@ export async function executeIntent(
 
   const tokenInfo = resolveAllSetToken(token, chain, network, provider);
   if (!tokenInfo) {
-    throw new FastError(
+    throw await createFastError(
       'TOKEN_NOT_FOUND',
       `Cannot resolve token "${token}" on AllSet for chain "${chain}".`,
       {
@@ -656,7 +669,7 @@ export async function executeIntent(
   // Step 6: Submit to relayer
   const externalAddress = resolveExternalAddress(intents, externalAddressOverride);
   if (!externalAddress) {
-    throw new FastError(
+    throw await createFastError(
       'INVALID_PARAMS',
       'executeIntent requires externalAddress when intents do not include a transfer recipient or execute target',
       {
@@ -687,7 +700,7 @@ export async function executeIntent(
 
   if (!relayRes.ok) {
     const text = await relayRes.text();
-    throw new FastError(
+    throw await createFastError(
       'TX_FAILED',
       `AllSet relayer request failed (${relayRes.status}): ${text}`,
       {
@@ -711,7 +724,7 @@ async function handleWithdraw(
   provider?: BridgeProviderConfig,
 ): Promise<BridgeResult> {
   if (!params.fastWallet) {
-    throw new FastError(
+    throw await createFastError(
       'INVALID_PARAMS',
       'AllSet withdrawal (Fast → EVM) requires fastWallet',
       {
@@ -725,7 +738,7 @@ async function handleWithdraw(
     ?? resolveAllSetToken(params.toToken, params.toChain, network, provider);
 
   if (!tokenInfo) {
-    throw new FastError(
+    throw await createFastError(
       'TOKEN_NOT_FOUND',
       `Cannot resolve token "${params.fromToken}" on AllSet for destination chain "${params.toChain}".`,
       {
