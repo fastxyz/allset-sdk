@@ -10,7 +10,15 @@ export function bytesToHex(bytes: Uint8Array): Hex {
 }
 
 export function fastAddressToBytes32(address: string): Hex {
-  const { prefix, words } = bech32m.decode(address, 90);
+  let decoded: ReturnType<typeof bech32m.decode>;
+
+  try {
+    decoded = bech32m.decode(address, 90);
+  } catch (error) {
+    throw new Error(`Invalid Fast address "${address}": ${(error as Error).message}`);
+  }
+
+  const { prefix, words } = decoded;
   if (prefix !== 'fast') {
     throw new Error(`Fast address must use the "fast" prefix. Got: "${prefix}"`);
   }

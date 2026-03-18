@@ -45,6 +45,34 @@ console.log(plan.data);
 console.log(plan.value);
 ```
 
+For deployments that are not bundled in the SDK yet, pass your own route config:
+
+```ts
+const plan = buildDepositTransaction({
+  network: 'mainnet',
+  chain: 'base',
+  token: 'fastUSDC',
+  amount: 1_000_000n,
+  receiver: 'fast1receiveraddress...',
+  networkConfig: {
+    chains: {
+      base: {
+        chainId: 8453,
+        bridgeContract: '0xYourAllSetBridge',
+        tokens: {
+          USDC: {
+            evmAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+            decimals: 6,
+          },
+        },
+      },
+    },
+  },
+});
+```
+
+This is the intended temporary path for Base mainnet until the authoritative deployment config is published in the SDK defaults.
+
 ### Node execution
 
 ```ts

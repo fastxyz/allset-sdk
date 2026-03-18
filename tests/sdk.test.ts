@@ -59,6 +59,13 @@ test('fastAddressToBytes32 converts a Fast receiver into bytes32', () => {
   );
 });
 
+test('fastAddressToBytes32 wraps invalid bech32 payloads in a Fast-address error', () => {
+  assert.throws(
+    () => fastAddressToBytes32('fast1invalid'),
+    /Invalid Fast address "fast1invalid"/,
+  );
+});
+
 test('encodeDepositCalldata matches deposit(address,uint256,bytes32) encoding', () => {
   const receiverBytes32 = fastAddressToBytes32(FAST_ADDRESS);
   const tokenAddress = '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d';
@@ -118,6 +125,36 @@ test('buildDepositTransaction applies route overrides', () => {
   assert.equal(plan.to, '0x9999999999999999999999999999999999999999');
   assert.equal(plan.value, 0n);
   assert.ok(plan.data.startsWith('0x'));
+});
+
+test('buildDepositTransaction supports caller-supplied mainnet config for unbundled deployments', () => {
+  const plan = buildDepositTransaction({
+    network: 'mainnet',
+    chain: 'base',
+    token: 'fastUSDC',
+    amount: 1_000_000n,
+    receiver: FAST_ADDRESS,
+    networkConfig: {
+      chains: {
+        base: {
+          chainId: 8453,
+          bridgeContract: '0x9999999999999999999999999999999999999999',
+          tokens: {
+            USDC: {
+              evmAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+              decimals: 6,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  assert.equal(plan.chainId, 8453);
+  assert.equal(plan.to, '0x9999999999999999999999999999999999999999');
+  assert.equal(plan.route.token, 'USDC');
+  assert.equal(plan.route.tokenAddress, '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913');
+  assert.equal(plan.value, 0n);
 });
 
 test('resolveDepositRoute rejects unsupported routes', () => {
