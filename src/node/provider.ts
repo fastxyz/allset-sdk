@@ -7,7 +7,7 @@
 
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DEFAULT_NETWORKS_CONFIG } from './default-config.js';
+import { DEFAULT_NETWORKS_CONFIG } from '../default-config.js';
 import type { NetworkConfig, ChainConfig, TokenConfig, AllNetworksConfig } from './config.js';
 import type { BridgeResult, SendToFastParams, SendToExternalParams, ExecuteIntentParams } from './types.js';
 

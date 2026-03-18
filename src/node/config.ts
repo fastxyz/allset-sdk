@@ -2,7 +2,7 @@
  * config.ts — Embedded network configuration accessors
  */
 
-import { DEFAULT_NETWORKS_CONFIG } from './default-config.js';
+import { DEFAULT_NETWORKS_CONFIG } from '../default-config.js';
 
 // ---------------------------------------------------------------------------
 // Types

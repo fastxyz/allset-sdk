@@ -1,4 +1,4 @@
-import type { AllNetworksConfig } from './config.js';
+import type { AllNetworksConfig } from './node/config.js';
 
 // Single source of truth for the SDK's bundled default network support matrix.
 export const DEFAULT_NETWORKS_CONFIG = {

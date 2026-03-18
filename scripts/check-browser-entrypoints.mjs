@@ -8,12 +8,6 @@ if (entryFiles.length === 0) {
 }
 
 const forbiddenSpecifiers = new Set(['@fastxyz/sdk']);
-const forbiddenFiles = new Set([
-  'bridge.js',
-  'config.js',
-  'evm-executor.js',
-  'provider.js',
-]);
 const seen = new Set();
 
 function resolveImport(fromFile, specifier) {
@@ -45,10 +39,6 @@ function walk(file) {
 
   if (resolvedFile.includes(`${path.sep}dist${path.sep}node${path.sep}`)) {
     throw new Error(`Browser entrypoint reaches node subpath: ${resolvedFile}`);
-  }
-
-  if (forbiddenFiles.has(path.basename(resolvedFile))) {
-    throw new Error(`Browser entrypoint reaches node-only file: ${resolvedFile}`);
   }
 
   const source = readFileSync(resolvedFile, 'utf8');
