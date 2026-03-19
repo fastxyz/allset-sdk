@@ -300,7 +300,7 @@ test('AllSetProvider configPath drives sendToFast execution', async (t) => {
           tokens: {
             USDC: {
               evmAddress: '0x2222222222222222222222222222222222222222',
-              fastTokenId: 'b4cf1b9e227bb6a21b959338895dfb39b8d2a96dfa1ce5dd633561c193124cb5',
+              fastTokenId: '9c52fe9465f57bc526c11aa0c048fd8709aa46abc06d15c80cbed9263d4d4df8', // testUSDC
               decimals: 6,
             },
           },
