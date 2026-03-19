@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -48,6 +48,18 @@ test('browser entrypoint exposes pure helpers without node APIs', () => {
   assert.equal(typeof browserEntry.buildTransferIntent, 'function');
   assert.equal('AllSetProvider' in browserEntry, false);
   assert.equal('createEvmExecutor' in browserEntry, false);
+});
+
+test('package metadata requires the claim-scoped Fast SDK release', () => {
+  const packageJson = JSON.parse(
+    readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
+  ) as {
+    peerDependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+  };
+
+  assert.equal(packageJson.peerDependencies?.['@fastxyz/sdk'], '>=0.2.1');
+  assert.equal(packageJson.devDependencies?.['@fastxyz/sdk'], '^0.2.1');
 });
 
 // ---------------------------------------------------------------------------

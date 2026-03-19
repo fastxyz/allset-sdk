@@ -13,12 +13,12 @@ npm install @fastxyz/allset-sdk
 FastWallet-backed withdrawals and intent execution:
 
 ```bash
-npm install @fastxyz/allset-sdk @fastxyz/sdk
+npm install @fastxyz/allset-sdk @fastxyz/sdk@^0.2.1
 ```
 
-`@fastxyz/sdk` is optional for pure helpers and EVM -> Fast deposits. Install it when you use `FastWallet` flows such as `sendToExternal(...)` or `executeIntent(...)`.
+`@fastxyz/sdk` is optional for pure helpers and EVM -> Fast deposits. Install `@fastxyz/sdk` 0.2.1 or newer when you use `FastWallet` flows such as `sendToExternal(...)` or `executeIntent(...)`.
 
-Compatible Fast wallets must implement the current `submit({ claim })` contract from `@fastxyz/sdk`. Claims that need a recipient, such as `TokenTransfer`, must include it inside the claim payload.
+Compatible Fast wallets must implement the current `submit({ claim })` contract from `@fastxyz/sdk` 0.2.1+. Claims that need a recipient, such as `TokenTransfer`, must include it inside the claim payload.
 
 ## Entrypoints
 
