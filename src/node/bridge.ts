@@ -9,8 +9,8 @@
  */
 
 import { decodeAbiParameters, encodeAbiParameters } from 'viem';
-import { fastAddressToBytes } from '@fastxyz/sdk';
 import type { BridgeParams, BridgeResult, AllSetChainConfig, AllSetTokenInfo, ExecuteIntentParams } from './types.js';
+import { fastAddressToBytes } from '../core/address.js';
 import { getNetworkConfig, getChainConfig, getTokenConfig, type ChainConfig, type TokenConfig } from './config.js';
 import { buildDepositTransactionFromRoute } from '../core/deposit.js';
 import { IntentAction, type Intent, buildTransferIntent } from '../intents.js';

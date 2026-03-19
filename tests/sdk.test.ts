@@ -590,6 +590,75 @@ test('executeIntent infers external_address from execute target', async (t) => {
   assert.equal(relayerBody?.external_address, contractAddress);
 });
 
+test('executeIntent uses claim-scoped Fast recipients for bridge transfer and external claims', async (t) => {
+  const allset = new AllSetProvider({ network: 'testnet' });
+  const originalFetch = globalThis.fetch;
+  const submitCalls: Array<Record<string, unknown>> = [];
+
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes('/relayer/relay')) {
+      return Response.json({ ok: true });
+    }
+
+    return Response.json({
+      result: {
+        transaction: [1, 2, 3],
+        signature: '0xsig',
+      },
+    });
+  };
+
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  await allset.executeIntent({
+    chain: 'arbitrum',
+    fastWallet: {
+      address: FAST_ADDRESS,
+      async submit(params) {
+        submitCalls.push(params as Record<string, unknown>);
+        return { txHash: TX_HASH, certificate: { ok: true } };
+      },
+    } as any,
+    token: 'fastUSDC',
+    amount: '1000000',
+    intents: [buildTransferIntent('0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d', EVM_ADDRESS)],
+  });
+
+  assert.equal(submitCalls.length, 2);
+
+  const expectedRecipient = new Uint8Array(
+    Buffer.from(
+      fastAddressToBytes32(DEFAULT_NETWORKS_CONFIG.testnet.chains.arbitrum.fastBridgeAddress).slice(2),
+      'hex',
+    ),
+  );
+
+  const transferCall = submitCalls[0] as {
+    recipient?: unknown;
+    claim?: {
+      TokenTransfer?: {
+        recipient?: Uint8Array;
+      };
+    };
+  };
+  assert.equal('recipient' in transferCall, false);
+  assert.deepEqual(
+    Array.from(transferCall.claim?.TokenTransfer?.recipient ?? []),
+    Array.from(expectedRecipient),
+  );
+
+  const intentCall = submitCalls[1] as {
+    recipient?: unknown;
+    claim?: {
+      ExternalClaim?: unknown;
+    };
+  };
+  assert.equal('recipient' in intentCall, false);
+  assert.ok(intentCall.claim?.ExternalClaim);
+});
+
 test('executeIntent rejects intents without an EVM target unless externalAddress is provided', async (t) => {
   const allset = new AllSetProvider({ network: 'testnet' });
   const originalFetch = globalThis.fetch;
