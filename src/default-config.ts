@@ -35,7 +35,7 @@ export const DEFAULT_NETWORKS_CONFIG = {
         chainId: 8453,
         bridgeContract: '0x83f0644FF860423539Dc6b6cA6d3b05a6F03337B',
         fastBridgeAddress: 'fast1a4fza9xc8jcm7jp64a0ugtuyw3hkkmje02e8af9aaer4r0je4dpqz4uf58',
-        relayerUrl: 'https://testnet.allset.fast.xyz/base/relayer',
+        relayerUrl: 'https://testnet.allset.fast.xyz/base/relayer/relay',
         tokens: {
           USDC: {
             evmAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',

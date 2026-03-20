@@ -208,7 +208,7 @@ test('bundled testnet endpoints match the current manifest', () => {
     chainId: 8453,
     bridgeContract: '0x83f0644FF860423539Dc6b6cA6d3b05a6F03337B',
     fastBridgeAddress: 'fast1a4fza9xc8jcm7jp64a0ugtuyw3hkkmje02e8af9aaer4r0je4dpqz4uf58',
-    relayerUrl: 'https://testnet.allset.fast.xyz/base/relayer',
+    relayerUrl: 'https://testnet.allset.fast.xyz/base/relayer/relay',
     tokens: {
       USDC: {
         evmAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
@@ -939,7 +939,7 @@ test('executeBridge uses the exact bundled base relayer URL', async (t) => {
   globalThis.fetch = async (url) => {
     urls.push(String(url));
 
-    if (String(url) === 'https://testnet.allset.fast.xyz/base/relayer') {
+    if (String(url) === 'https://testnet.allset.fast.xyz/base/relayer/relay') {
       return Response.json({ ok: true });
     }
 
@@ -972,5 +972,5 @@ test('executeBridge uses the exact bundled base relayer URL', async (t) => {
     } as any,
   });
 
-  assert.equal(urls[2], 'https://testnet.allset.fast.xyz/base/relayer');
+  assert.equal(urls[2], 'https://testnet.allset.fast.xyz/base/relayer/relay');
 });

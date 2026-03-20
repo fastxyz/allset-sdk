@@ -222,12 +222,10 @@ Bundled testnet chain routes:
 - Base
   - Bridge contract: `0x83f0644FF860423539Dc6b6cA6d3b05a6F03337B`
   - Fast bridge: `fast1a4fza9xc8jcm7jp64a0ugtuyw3hkkmje02e8af9aaer4r0je4dpqz4uf58`
-  - Bundled relayer URL: `https://testnet.allset.fast.xyz/base/relayer`
+  - Bundled relayer URL: `https://testnet.allset.fast.xyz/base/relayer/relay`
   - Bundled Fast token id
     - Base64: `h05gNlCWQLUt1eqN9xhob4g/UE7CrkL7BSVMhmuqfWU=`
     - Hex: `874e6036509640b52dd5ea8df718686f883f504ec2ae42fb05254c866baa7d65`
-
-The SDK posts to the exact bundled relayer URL for each chain. Base currently uses `/relayer`, while Ethereum Sepolia and Arbitrum Sepolia use `/relayer/relay`.
 
 ## Migration
 
