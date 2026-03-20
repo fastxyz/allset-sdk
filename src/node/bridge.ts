@@ -692,7 +692,7 @@ export async function executeIntent(
     external_token_address: tokenInfo.evmAddress,
   };
 
-  const relayRes = await fetch(chainConfig.relayerUrl, {
+  const relayRes = await fetch(`${chainConfig.relayerUrl}/relay`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(relayerBody),

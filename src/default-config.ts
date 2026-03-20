@@ -9,7 +9,7 @@ export const DEFAULT_NETWORKS_CONFIG = {
         chainId: 11155111,
         bridgeContract: '0xb53600976275D6f541a3B929328d07714EFA581F',
         fastBridgeAddress: 'fast1fxtkgpwcy7hnakw96gg7relph4wxx7ghrukm723p3l9adxuxljzsc6f958',
-        relayerUrl: 'https://testnet.allset.fast.xyz/ethereum-sepolia/relayer/relay',
+        relayerUrl: 'https://testnet.allset.fast.xyz/ethereum-sepolia/relayer',
         tokens: {
           USDC: {
             evmAddress: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
@@ -22,7 +22,7 @@ export const DEFAULT_NETWORKS_CONFIG = {
         chainId: 421614,
         bridgeContract: '0xb53600976275D6f541a3B929328d07714EFA581F',
         fastBridgeAddress: 'fast1tkmtqxulhnzeeg9zhuwxy3x95wr7waytm9cq40ndf7tkuwwcc6jseg24j8',
-        relayerUrl: 'https://testnet.allset.fast.xyz/arbitrum-sepolia/relayer/relay',
+        relayerUrl: 'https://testnet.allset.fast.xyz/arbitrum-sepolia/relayer',
         tokens: {
           USDC: {
             evmAddress: '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d',
@@ -35,7 +35,7 @@ export const DEFAULT_NETWORKS_CONFIG = {
         chainId: 8453,
         bridgeContract: '0x83f0644FF860423539Dc6b6cA6d3b05a6F03337B',
         fastBridgeAddress: 'fast1a4fza9xc8jcm7jp64a0ugtuyw3hkkmje02e8af9aaer4r0je4dpqz4uf58',
-        relayerUrl: 'https://testnet.allset.fast.xyz/base/relayer/relay',
+        relayerUrl: 'https://testnet.allset.fast.xyz/base/relayer',
         tokens: {
           USDC: {
             evmAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',

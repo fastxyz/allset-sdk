@@ -208,21 +208,21 @@ Bundled testnet chain routes:
 - Ethereum Sepolia
   - Bridge contract: `0xb53600976275D6f541a3B929328d07714EFA581F`
   - Fast bridge: `fast1fxtkgpwcy7hnakw96gg7relph4wxx7ghrukm723p3l9adxuxljzsc6f958`
-  - Bundled relayer URL: `https://testnet.allset.fast.xyz/ethereum-sepolia/relayer/relay`
+  - Bundled relayer URL: `https://testnet.allset.fast.xyz/ethereum-sepolia/relayer`
   - Bundled Fast token id
     - Base64: `1zoGeaK+RpgeKort7NlRyLZpDn1fhQKzTtP/TMIWO0Y=`
     - Hex: `d73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46`
 - Arbitrum Sepolia
   - Bridge contract: `0xb53600976275D6f541a3B929328d07714EFA581F`
   - Fast bridge: `fast1tkmtqxulhnzeeg9zhuwxy3x95wr7waytm9cq40ndf7tkuwwcc6jseg24j8`
-  - Bundled relayer URL: `https://testnet.allset.fast.xyz/arbitrum-sepolia/relayer/relay`
+  - Bundled relayer URL: `https://testnet.allset.fast.xyz/arbitrum-sepolia/relayer`
   - Bundled Fast token id
     - Base64: `1zoGeaK+RpgeKort7NlRyLZpDn1fhQKzTtP/TMIWO0Y=`
     - Hex: `d73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46`
 - Base
   - Bridge contract: `0x83f0644FF860423539Dc6b6cA6d3b05a6F03337B`
   - Fast bridge: `fast1a4fza9xc8jcm7jp64a0ugtuyw3hkkmje02e8af9aaer4r0je4dpqz4uf58`
-  - Bundled relayer URL: `https://testnet.allset.fast.xyz/base/relayer/relay`
+  - Bundled relayer URL: `https://testnet.allset.fast.xyz/base/relayer`
   - Bundled Fast token id
     - Base64: `h05gNlCWQLUt1eqN9xhob4g/UE7CrkL7BSVMhmuqfWU=`
     - Hex: `874e6036509640b52dd5ea8df718686f883f504ec2ae42fb05254c866baa7d65`
