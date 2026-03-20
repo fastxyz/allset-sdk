@@ -170,7 +170,7 @@ If you change code in this repo:
 ## Current Support Matrix
 
 - Networks: `testnet` only (mainnet placeholder)
-- Chains: `ethereum` (Sepolia), `arbitrum` (Sepolia), `base` (chain ID `8453`, connected to testnet)
+- Chains: `ethereum-sepolia`, `arbitrum-sepolia`, `base` (chain ID `8453`, connected to testnet)
 - Tokens: USDC on EVM, plus `fastUSDC` and `testUSDC` aliases that normalize to the configured Fast-side USDC mapping
 
 ## API Reference
@@ -236,7 +236,7 @@ Deposit tokens from EVM chain to Fast network.
 
 ```ts
 await allset.sendToFast({
-  chain: 'arbitrum',           // EVM chain
+  chain: 'arbitrum-sepolia',   // EVM chain
   token: 'USDC',               // Token symbol
   amount: '1000000',           // Amount (smallest units)
   from: account.address,       // Sender EVM address
@@ -251,7 +251,7 @@ Withdraw tokens from Fast network to EVM chain.
 
 ```ts
 await allset.sendToExternal({
-  chain: 'arbitrum',           // EVM chain
+  chain: 'arbitrum-sepolia',   // EVM chain
   token: 'fastUSDC',           // Token symbol
   amount: '1000000',           // Amount (smallest units)
   from: fastWallet.address,    // Sender Fast address
@@ -268,7 +268,7 @@ Execute custom intents on EVM chain.
 import { buildTransferIntent, buildExecuteIntent } from '@fastxyz/allset-sdk';
 
 await allset.executeIntent({
-  chain: 'arbitrum',
+  chain: 'arbitrum-sepolia',
   fastWallet,
   token: 'fastUSDC',
   amount: '1000000',
@@ -337,7 +337,7 @@ const account = createEvmWallet('~/.evm/keys/default.json');
 const evmClients = createEvmExecutor(account, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
 
 await allset.sendToFast({
-  chain: 'arbitrum',
+  chain: 'arbitrum-sepolia',
   token: 'USDC',
   amount: '1000000',
   from: account.address,
@@ -350,7 +350,7 @@ await allset.sendToFast({
 
 ```ts
 await allset.sendToExternal({
-  chain: 'arbitrum',
+  chain: 'arbitrum-sepolia',
   token: 'fastUSDC',
   amount: '1000000',
   from: fastWallet.address,
@@ -379,7 +379,7 @@ await allset.sendToExternal({
 
 ### `UNSUPPORTED_OPERATION`
 
-- Chain not supported (use `ethereum`, `arbitrum`, or `base`)
+- Chain not supported (use `ethereum-sepolia`, `arbitrum-sepolia`, or `base`)
 
 ### `TX_FAILED`
 
@@ -400,8 +400,8 @@ await allset.sendToExternal({
 
 ## Common Requests
 
-- "Deposit USDC from Arbitrum to Fast" → `sendToFast`
-- "Withdraw fastUSDC to Arbitrum" → `sendToExternal`
+- "Deposit USDC from Arbitrum Sepolia to Fast" → `sendToFast`
+- "Withdraw fastUSDC to Arbitrum Sepolia" → `sendToExternal`
 - "Execute custom intent" → `executeIntent`
 - "Generate new EVM wallet" → `createEvmWallet()`
 - "Load wallet from keyfile" → `createEvmWallet(path)`

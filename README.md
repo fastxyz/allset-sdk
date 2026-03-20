@@ -38,7 +38,7 @@ import { buildDepositTransaction } from '@fastxyz/allset-sdk';
 
 const plan = buildDepositTransaction({
   network: 'testnet',
-  chain: 'arbitrum',
+  chain: 'arbitrum-sepolia',
   token: 'USDC',
   amount: 1_000_000n,
   receiver: 'fast1receiveraddress...',
@@ -101,7 +101,7 @@ const evmClients = createEvmExecutor(account, 'https://sepolia-rollup.arbitrum.i
 
 // Deposit: EVM → Fast
 await allset.sendToFast({
-  chain: 'arbitrum',
+  chain: 'arbitrum-sepolia',
   token: 'USDC',
   amount: '1000000',
   from: account.address,
@@ -111,7 +111,7 @@ await allset.sendToFast({
 
 // Withdraw: Fast → EVM
 await allset.sendToExternal({
-  chain: 'arbitrum',
+  chain: 'arbitrum-sepolia',
   token: 'fastUSDC',
   amount: '1000000',
   from: fastWallet.address,
@@ -176,7 +176,7 @@ const intents = [
 import { buildExecuteIntent, buildTransferIntent } from '@fastxyz/allset-sdk';
 
 await allset.executeIntent({
-  chain: 'arbitrum',
+  chain: 'arbitrum-sepolia',
   fastWallet,
   token: 'fastUSDC',
   amount: '1000000',
