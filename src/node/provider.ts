@@ -100,8 +100,8 @@ function loadConfig(customPath?: string): AllNetworksConfig {
  * const provider = new AllSetProvider({ configPath: './my-config.json' });
  *
  * // Access configuration
- * const chainConfig = provider.getChainConfig('arbitrum');
- * const tokenConfig = provider.getTokenConfig('arbitrum', 'USDC');
+ * const chainConfig = provider.getChainConfig('arbitrum-sepolia');
+ * const tokenConfig = provider.getTokenConfig('arbitrum-sepolia', 'USDC');
  * ```
  */
 export class AllSetProvider {
@@ -189,7 +189,7 @@ export class AllSetProvider {
    * @example
    * ```ts
    * const result = await allset.sendToFast({
-   *   chain: 'arbitrum',
+   *   chain: 'arbitrum-sepolia',
    *   token: 'USDC',
    *   amount: '1000000',
    *   from: '0xYourEvmAddress',
@@ -220,7 +220,7 @@ export class AllSetProvider {
    * @example
    * ```ts
    * const result = await allset.sendToExternal({
-   *   chain: 'arbitrum',
+   *   chain: 'arbitrum-sepolia',
    *   token: 'fastUSDC',
    *   amount: '1000000',
    *   from: fastWallet.address,
@@ -257,7 +257,7 @@ export class AllSetProvider {
    * 
    * // Simple transfer
    * const result = await allset.executeIntent({
-   *   chain: 'arbitrum',
+   *   chain: 'arbitrum-sepolia',
    *   fastWallet, // Compatible Fast wallet, e.g. FastWallet from @fastxyz/sdk
    *   token: 'fastUSDC',
    *   amount: '1000000',
@@ -266,7 +266,7 @@ export class AllSetProvider {
    * 
    * // Custom contract call
    * const result = await allset.executeIntent({
-   *   chain: 'arbitrum',
+   *   chain: 'arbitrum-sepolia',
    *   fastWallet, // Compatible Fast wallet, e.g. FastWallet from @fastxyz/sdk
    *   token: 'fastUSDC',
    *   amount: '1000000',

@@ -5,7 +5,7 @@ export const DEFAULT_NETWORKS_CONFIG = {
   testnet: {
     crossSignUrl: 'https://testnet.cross-sign.allset.fast.xyz',
     chains: {
-      ethereum: {
+      'ethereum-sepolia': {
         chainId: 11155111,
         bridgeContract: '0xb53600976275D6f541a3B929328d07714EFA581F',
         fastBridgeAddress: 'fast1fxtkgpwcy7hnakw96gg7relph4wxx7ghrukm723p3l9adxuxljzsc6f958',
@@ -18,7 +18,7 @@ export const DEFAULT_NETWORKS_CONFIG = {
           },
         },
       },
-      arbitrum: {
+      'arbitrum-sepolia': {
         chainId: 421614,
         bridgeContract: '0xb53600976275D6f541a3B929328d07714EFA581F',
         fastBridgeAddress: 'fast1tkmtqxulhnzeeg9zhuwxy3x95wr7waytm9cq40ndf7tkuwwcc6jseg24j8',

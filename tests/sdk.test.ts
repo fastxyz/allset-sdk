@@ -113,7 +113,7 @@ test('encodeDepositCalldata matches deposit(address,uint256,bytes32) encoding', 
 test('resolveDepositRoute returns the configured testnet arbitrum route', () => {
   const route = resolveDepositRoute({
     network: 'testnet',
-    chain: 'arbitrum',
+    chain: 'arbitrum-sepolia',
     token: 'fastUSDC',
   });
 
@@ -127,7 +127,7 @@ test('resolveDepositRoute returns the configured testnet arbitrum route', () => 
 test('buildDepositTransaction applies route overrides', () => {
   const plan = buildDepositTransaction({
     network: 'testnet',
-    chain: 'arbitrum',
+    chain: 'arbitrum-sepolia',
     token: 'USDC',
     amount: 1_000_000n,
     receiver: FAST_ADDRESS,
@@ -176,7 +176,7 @@ test('bundled testnet endpoints match the current manifest', () => {
 
   assert.equal(testnet.crossSignUrl, 'https://testnet.cross-sign.allset.fast.xyz');
 
-  assert.deepEqual(testnet.chains.ethereum, {
+  assert.deepEqual(testnet.chains['ethereum-sepolia'], {
     chainId: 11155111,
     bridgeContract: '0xb53600976275D6f541a3B929328d07714EFA581F',
     fastBridgeAddress: 'fast1fxtkgpwcy7hnakw96gg7relph4wxx7ghrukm723p3l9adxuxljzsc6f958',
@@ -190,7 +190,7 @@ test('bundled testnet endpoints match the current manifest', () => {
     },
   });
 
-  assert.deepEqual(testnet.chains.arbitrum, {
+  assert.deepEqual(testnet.chains['arbitrum-sepolia'], {
     chainId: 421614,
     bridgeContract: '0xb53600976275D6f541a3B929328d07714EFA581F',
     fastBridgeAddress: 'fast1tkmtqxulhnzeeg9zhuwxy3x95wr7waytm9cq40ndf7tkuwwcc6jseg24j8',
@@ -223,7 +223,7 @@ test('resolveDepositRoute rejects unsupported routes', () => {
   assert.throws(
     () => resolveDepositRoute({
       network: 'mainnet',
-      chain: 'arbitrum',
+      chain: 'arbitrum-sepolia',
       token: 'USDC',
     }),
     /does not support EVM chain/,
@@ -237,8 +237,8 @@ test('resolveDepositRoute rejects unsupported routes', () => {
 test('AllSetProvider exposes expected properties', () => {
   const allset = new AllSetProvider({ network: 'testnet' });
   assert.equal(allset.network, 'testnet');
-  assert.ok(allset.chains.includes('arbitrum'));
-  assert.ok(allset.chains.includes('ethereum'));
+  assert.ok(allset.chains.includes('arbitrum-sepolia'));
+  assert.ok(allset.chains.includes('ethereum-sepolia'));
   assert.ok(allset.chains.includes('base'));
   assert.ok(allset.crossSignUrl.length > 0);
 });
@@ -246,12 +246,12 @@ test('AllSetProvider exposes expected properties', () => {
 test('AllSetProvider.getChainConfig returns config for supported chains', () => {
   const allset = new AllSetProvider({ network: 'testnet' });
   
-  const arbConfig = allset.getChainConfig('arbitrum');
+  const arbConfig = allset.getChainConfig('arbitrum-sepolia');
   assert.ok(arbConfig);
   assert.equal(arbConfig.chainId, 421614);
   assert.ok(arbConfig.bridgeContract.startsWith('0x'));
   
-  const ethConfig = allset.getChainConfig('ethereum');
+  const ethConfig = allset.getChainConfig('ethereum-sepolia');
   assert.ok(ethConfig);
   assert.equal(ethConfig.chainId, 11155111);
 });
@@ -265,12 +265,12 @@ test('AllSetProvider.getChainConfig returns null for unsupported chains', () => 
 test('AllSetProvider.getTokenConfig returns config and normalizes Fast token aliases', () => {
   const allset = new AllSetProvider({ network: 'testnet' });
   
-  const usdcConfig = allset.getTokenConfig('arbitrum', 'USDC');
+  const usdcConfig = allset.getTokenConfig('arbitrum-sepolia', 'USDC');
   assert.ok(usdcConfig);
   assert.equal(usdcConfig.decimals, 6);
   
   // fastUSDC should normalize to USDC config
-  const fastUsdcConfig = allset.getTokenConfig('arbitrum', 'fastUSDC');
+  const fastUsdcConfig = allset.getTokenConfig('arbitrum-sepolia', 'fastUSDC');
   assert.ok(fastUsdcConfig);
   assert.deepEqual(fastUsdcConfig, usdcConfig);
 
@@ -347,7 +347,7 @@ test('AllSetProvider sendToFast matches the public deposit builder output', asyn
   const allset = new AllSetProvider({ network: 'testnet' });
   const expectedPlan = buildDepositTransaction({
     network: 'testnet',
-    chain: 'arbitrum',
+    chain: 'arbitrum-sepolia',
     token: 'USDC',
     amount: 1_000_000n,
     receiver: FAST_ADDRESS,
@@ -368,7 +368,7 @@ test('AllSetProvider sendToFast matches the public deposit builder output', asyn
   };
 
   const result = await allset.sendToFast({
-    chain: 'arbitrum',
+    chain: 'arbitrum-sepolia',
     token: 'USDC',
     amount: '1000000',
     from: EVM_ADDRESS,
@@ -393,7 +393,7 @@ test('sendToFast without evmClients is rejected', async () => {
   
   await assert.rejects(
     () => allset.sendToFast({
-      chain: 'arbitrum',
+      chain: 'arbitrum-sepolia',
       token: 'USDC',
       amount: '1000000',
       from: '0xsender',
@@ -421,7 +421,7 @@ test('executeBridge preserves upstream FastError instances', async () => {
   await assert.rejects(
     () => executeBridge({
       fromChain: 'fast',
-      toChain: 'arbitrum',
+      toChain: 'arbitrum-sepolia',
       fromToken: 'fastUSDC',
       toToken: 'USDC',
       fromDecimals: 6,
@@ -475,7 +475,7 @@ test('sendToExternal without fastWallet is rejected', async () => {
   
   await assert.rejects(
     () => allset.sendToExternal({
-      chain: 'arbitrum',
+      chain: 'arbitrum-sepolia',
       token: 'fastUSDC',
       amount: '1000000',
       from: 'fast1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq0l98cr',
@@ -549,7 +549,7 @@ test('executeIntent without fastWallet is rejected', async () => {
   
   await assert.rejects(
     () => allset.executeIntent({
-      chain: 'arbitrum',
+      chain: 'arbitrum-sepolia',
       token: 'fastUSDC',
       amount: '1000000',
       intents: [buildTransferIntent('0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d', '0x1234567890123456789012345678901234567890')],
@@ -587,7 +587,7 @@ test('executeIntent infers external_address from execute target', async (t) => {
   });
 
   await allset.executeIntent({
-    chain: 'arbitrum',
+    chain: 'arbitrum-sepolia',
     fastWallet: {
       address: FAST_ADDRESS,
       async submit() {
@@ -625,7 +625,7 @@ test('executeIntent uses claim-scoped Fast recipients for bridge transfer and ex
   });
 
   await allset.executeIntent({
-    chain: 'arbitrum',
+    chain: 'arbitrum-sepolia',
     fastWallet: {
       address: FAST_ADDRESS,
       async submit(params) {
@@ -642,7 +642,7 @@ test('executeIntent uses claim-scoped Fast recipients for bridge transfer and ex
 
   const expectedRecipient = new Uint8Array(
     Buffer.from(
-      fastAddressToBytes32(DEFAULT_NETWORKS_CONFIG.testnet.chains.arbitrum.fastBridgeAddress).slice(2),
+      fastAddressToBytes32(DEFAULT_NETWORKS_CONFIG.testnet.chains['arbitrum-sepolia'].fastBridgeAddress).slice(2),
       'hex',
     ),
   );
@@ -690,7 +690,7 @@ test('executeIntent rejects intents without an EVM target unless externalAddress
 
   await assert.rejects(
     () => allset.executeIntent({
-      chain: 'arbitrum',
+      chain: 'arbitrum-sepolia',
       fastWallet: {
         address: FAST_ADDRESS,
         async submit() {
@@ -912,7 +912,7 @@ test('executeBridge withdrawal uses the default cross-sign URL without a provide
 
   await executeBridge({
     fromChain: 'fast',
-    toChain: 'arbitrum',
+    toChain: 'arbitrum-sepolia',
     fromToken: 'fastUSDC',
     toToken: 'USDC',
     fromDecimals: 6,

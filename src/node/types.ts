@@ -49,7 +49,7 @@ export interface BridgeResult {
  * Parameters for sendToFast (EVM → Fast deposit)
  */
 export interface SendToFastParams {
-  /** Source EVM chain, for example 'ethereum', 'arbitrum', or 'base' */
+  /** Source EVM chain, for example 'ethereum-sepolia', 'arbitrum-sepolia', or 'base' */
   chain: string;
   /** Token symbol (e.g., 'USDC') */
   token: string;
@@ -67,7 +67,7 @@ export interface SendToFastParams {
  * Parameters for sendToExternal (Fast → EVM withdrawal)
  */
 export interface SendToExternalParams {
-  /** Destination EVM chain, for example 'ethereum', 'arbitrum', or 'base' */
+  /** Destination EVM chain, for example 'ethereum-sepolia', 'arbitrum-sepolia', or 'base' */
   chain: string;
   /** Token symbol (e.g., 'fastUSDC' or 'USDC') */
   token: string;
@@ -85,7 +85,7 @@ export interface SendToExternalParams {
  * Parameters for executeIntent (advanced intent execution)
  */
 export interface ExecuteIntentParams {
-  /** Destination EVM chain, for example 'ethereum', 'arbitrum', or 'base' */
+  /** Destination EVM chain, for example 'ethereum-sepolia', 'arbitrum-sepolia', or 'base' */
   chain: string;
   /** Compatible Fast wallet, for example FastWallet from @fastxyz/sdk */
   fastWallet: FastWalletLike;
