@@ -143,7 +143,7 @@ export const ERC20_ABI = parseAbi([
   'function allowance(address owner, address spender) view returns (uint256)',
 ]);
 
-/** Supported chain mappings */
+/** Bundled supported chain mappings */
 export const CHAIN_MAP: Record<number, Chain> = {
   11155111: sepolia,
   421614: arbitrumSepolia,
@@ -163,7 +163,7 @@ export interface EvmClients {
  *
  * @param account - viem Account from createEvmWallet() or privateKeyToAccount()
  * @param rpcUrl - RPC endpoint URL
- * @param chainId - Chain ID (11155111 for Sepolia, 421614 for Arbitrum Sepolia)
+ * @param chainId - Chain ID (11155111 for Sepolia, 421614 for Arbitrum Sepolia, 8453 for Base)
  * @returns Object with walletClient and publicClient
  *
  * @example

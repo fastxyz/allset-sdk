@@ -38,7 +38,7 @@ import { buildDepositTransaction } from '@fastxyz/allset-sdk';
 
 const plan = buildDepositTransaction({
   network: 'testnet',
-  chain: 'arbitrum',
+  chain: 'arbitrum-sepolia',
   token: 'USDC',
   amount: 1_000_000n,
   receiver: 'fast1receiveraddress...',
@@ -75,7 +75,7 @@ const plan = buildDepositTransaction({
 });
 ```
 
-This is the intended temporary path for Base mainnet until the authoritative deployment config is published in the SDK defaults.
+Use this path for deployments that are not bundled in the SDK defaults yet.
 
 ### Node execution
 
@@ -101,7 +101,7 @@ const evmClients = createEvmExecutor(account, 'https://sepolia-rollup.arbitrum.i
 
 // Deposit: EVM → Fast
 await allset.sendToFast({
-  chain: 'arbitrum',
+  chain: 'arbitrum-sepolia',
   token: 'USDC',
   amount: '1000000',
   from: account.address,
@@ -111,7 +111,7 @@ await allset.sendToFast({
 
 // Withdraw: Fast → EVM
 await allset.sendToExternal({
-  chain: 'arbitrum',
+  chain: 'arbitrum-sepolia',
   token: 'fastUSDC',
   amount: '1000000',
   from: fastWallet.address,
@@ -176,7 +176,7 @@ const intents = [
 import { buildExecuteIntent, buildTransferIntent } from '@fastxyz/allset-sdk';
 
 await allset.executeIntent({
-  chain: 'arbitrum',
+  chain: 'arbitrum-sepolia',
   fastWallet,
   token: 'fastUSDC',
   amount: '1000000',
@@ -193,48 +193,39 @@ await allset.executeIntent({
 | --- | --- | --- |
 | Testnet | Arbitrum Sepolia | ✅ |
 | Testnet | Ethereum Sepolia | ✅ |
-| Testnet | Base (mainnet chain) | ✅ |
+| Testnet | Base (chain ID 8453) | ✅ |
 | Mainnet | Coming soon | 🔜 |
 
-## Current Hosted Endpoints
+## Bundled SDK Endpoints
 
-These are the currently used hosted endpoints and token IDs for the public testnet environment:
+These are the testnet deployment values currently embedded in the SDK defaults:
 
-- Portal: `https://testnet.allset.fast.xyz`
-- Fast proxy: `https://testnet.api.fast.xyz/proxy`
 - Cross-sign: `https://testnet.cross-sign.allset.fast.xyz`
-
-Current Fast token IDs:
-
-- `testUSDC` testnet token id
-  - Base64: `nFL+lGX1e8UmwRqgwEj9hwmqRqvAbRXIDL7ZJj1NTfg=`
-  - Hex: `9c52fe9465f57bc526c11aa0c048fd8709aa46abc06d15c80cbed9263d4d4df8`
-- `fastUSDC` mainnet token id
-  - Base64: `tP2rhGNydA90frS2SsDCLqoVkRPy01sHUCcGX7pBk2U=`
-  - Hex: `b4fdab846372740f747eb4b64ac0c22eaa159113f2d35b075027065fba419365`
+- `fastUSDC` and `testUSDC` are accepted SDK aliases; both normalize to the configured USDC route for the selected EVM chain.
 
 Bundled testnet chain routes:
 
 - Ethereum Sepolia
-  - Bridge contract: `0x67C5f02df93f2144C6a4e4Fb48D92cE91Cfbc3A6`
+  - Bridge contract: `0xb53600976275D6f541a3B929328d07714EFA581F`
   - Fast bridge: `fast1fxtkgpwcy7hnakw96gg7relph4wxx7ghrukm723p3l9adxuxljzsc6f958`
-  - Relayer base URL: `https://testnet.allset.fast.xyz/ethereum-sepolia/relayer`
-  - Bundled relayer submit URL: `https://testnet.allset.fast.xyz/ethereum-sepolia/relayer/relay`
-  - Fast token id: `testUSDC`
+  - Bundled relayer URL: `https://testnet.allset.fast.xyz/ethereum-sepolia/relayer`
+  - Bundled Fast token id
+    - Base64: `1zoGeaK+RpgeKort7NlRyLZpDn1fhQKzTtP/TMIWO0Y=`
+    - Hex: `d73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46`
 - Arbitrum Sepolia
-  - Bridge contract: `0x67C5f02df93f2144C6a4e4Fb48D92cE91Cfbc3A6`
+  - Bridge contract: `0xb53600976275D6f541a3B929328d07714EFA581F`
   - Fast bridge: `fast1tkmtqxulhnzeeg9zhuwxy3x95wr7waytm9cq40ndf7tkuwwcc6jseg24j8`
-  - Relayer base URL: `https://testnet.allset.fast.xyz/arbitrum-sepolia/relayer`
-  - Bundled relayer submit URL: `https://testnet.allset.fast.xyz/arbitrum-sepolia/relayer/relay`
-  - Fast token id: `testUSDC`
+  - Bundled relayer URL: `https://testnet.allset.fast.xyz/arbitrum-sepolia/relayer`
+  - Bundled Fast token id
+    - Base64: `1zoGeaK+RpgeKort7NlRyLZpDn1fhQKzTtP/TMIWO0Y=`
+    - Hex: `d73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46`
 - Base
-  - Bridge contract: `0x41cE437493f2a9DDA9214aE7b3662175bBe54a6c`
+  - Bridge contract: `0x83f0644FF860423539Dc6b6cA6d3b05a6F03337B`
   - Fast bridge: `fast1a4fza9xc8jcm7jp64a0ugtuyw3hkkmje02e8af9aaer4r0je4dpqz4uf58`
-  - Relayer base URL: `https://testnet.allset.fast.xyz/base/relayer`
-  - Bundled relayer submit URL: `https://testnet.allset.fast.xyz/base/relayer/relay`
-  - Bundled Fast token id: `fastUSDC`
-
-Note: the SDK currently posts to the explicit `/relay` endpoint. The plain `/relayer` URL above is included as a reference base URL.
+  - Bundled relayer URL: `https://testnet.allset.fast.xyz/base/relayer`
+  - Bundled Fast token id
+    - Base64: `h05gNlCWQLUt1eqN9xhob4g/UE7CrkL7BSVMhmuqfWU=`
+    - Hex: `874e6036509640b52dd5ea8df718686f883f504ec2ae42fb05254c866baa7d65`
 
 ## Migration
 

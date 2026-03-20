@@ -372,7 +372,7 @@ export async function executeBridge(params: BridgeParams, provider?: BridgeProvi
         'UNSUPPORTED_OPERATION',
         `AllSet only supports bridging between Fast network and configured EVM chains (${getSupportedChains(network, provider).join(', ') || 'none'}). Got: ${params.fromChain} → ${params.toChain}`,
         {
-          note: 'Use fromChain: "fast" for withdrawals, or toChain: "fast" for deposits.\n  Example: await allset.bridge({ fromChain: "ethereum", toChain: "fast", fromToken: "USDC", toToken: "fastUSDC", amount: "1000000", senderAddress: "0x...", receiverAddress: "fast1..." })',
+          note: 'Use fromChain: "fast" for withdrawals, or toChain: "fast" for deposits.\n  Example: await allset.bridge({ fromChain: "ethereum-sepolia", toChain: "fast", fromToken: "USDC", toToken: "fastUSDC", amount: "1000000", senderAddress: "0x...", receiverAddress: "fast1..." })',
         },
       );
     }
@@ -433,7 +433,7 @@ async function handleDeposit(
       'TOKEN_NOT_FOUND',
       `Cannot resolve token "${params.fromToken}" on AllSet for chain "${params.fromChain}".`,
       {
-        note: 'Supported tokens: USDC, fastUSDC, testUSDC.\n  Example: await allset.bridge({ fromChain: "arbitrum", toChain: "fast", fromToken: "USDC", toToken: "fastUSDC", amount: "1000000", senderAddress: "0x...", receiverAddress: "fast1..." })',
+        note: 'Supported tokens: USDC, fastUSDC, testUSDC.\n  Example: await allset.bridge({ fromChain: "arbitrum-sepolia", toChain: "fast", fromToken: "USDC", toToken: "fastUSDC", amount: "1000000", senderAddress: "0x...", receiverAddress: "fast1..." })',
       },
     );
   }
@@ -692,7 +692,7 @@ export async function executeIntent(
     external_token_address: tokenInfo.evmAddress,
   };
 
-  const relayRes = await fetch(chainConfig.relayerUrl, {
+  const relayRes = await fetch(`${chainConfig.relayerUrl}/relay`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(relayerBody),
