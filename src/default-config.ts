@@ -7,39 +7,39 @@ export const DEFAULT_NETWORKS_CONFIG = {
     chains: {
       ethereum: {
         chainId: 11155111,
-        bridgeContract: '0x67C5f02df93f2144C6a4e4Fb48D92cE91Cfbc3A6',
+        bridgeContract: '0xb53600976275D6f541a3B929328d07714EFA581F',
         fastBridgeAddress: 'fast1fxtkgpwcy7hnakw96gg7relph4wxx7ghrukm723p3l9adxuxljzsc6f958',
         relayerUrl: 'https://testnet.allset.fast.xyz/ethereum-sepolia/relayer/relay',
         tokens: {
           USDC: {
             evmAddress: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
-            fastTokenId: '9c52fe9465f57bc526c11aa0c048fd8709aa46abc06d15c80cbed9263d4d4df8',
+            fastTokenId: 'd73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46',
             decimals: 6,
           },
         },
       },
       arbitrum: {
         chainId: 421614,
-        bridgeContract: '0x67C5f02df93f2144C6a4e4Fb48D92cE91Cfbc3A6',
+        bridgeContract: '0xb53600976275D6f541a3B929328d07714EFA581F',
         fastBridgeAddress: 'fast1tkmtqxulhnzeeg9zhuwxy3x95wr7waytm9cq40ndf7tkuwwcc6jseg24j8',
         relayerUrl: 'https://testnet.allset.fast.xyz/arbitrum-sepolia/relayer/relay',
         tokens: {
           USDC: {
             evmAddress: '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d',
-            fastTokenId: '9c52fe9465f57bc526c11aa0c048fd8709aa46abc06d15c80cbed9263d4d4df8',
+            fastTokenId: 'd73a0679a2be46981e2a8aedecd951c8b6690e7d5f8502b34ed3ff4cc2163b46',
             decimals: 6,
           },
         },
       },
       base: {
         chainId: 8453,
-        bridgeContract: '0x41cE437493f2a9DDA9214aE7b3662175bBe54a6c',
+        bridgeContract: '0x83f0644FF860423539Dc6b6cA6d3b05a6F03337B',
         fastBridgeAddress: 'fast1a4fza9xc8jcm7jp64a0ugtuyw3hkkmje02e8af9aaer4r0je4dpqz4uf58',
-        relayerUrl: 'https://testnet.allset.fast.xyz/base/relayer/relay',
+        relayerUrl: 'https://testnet.allset.fast.xyz/base/relayer',
         tokens: {
           USDC: {
             evmAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
-            fastTokenId: 'b4fdab846372740f747eb4b64ac0c22eaa159113f2d35b075027065fba419365',
+            fastTokenId: '874e6036509640b52dd5ea8df718686f883f504ec2ae42fb05254c866baa7d65',
             decimals: 6,
           },
         },

@@ -170,8 +170,8 @@ If you change code in this repo:
 ## Current Support Matrix
 
 - Networks: `testnet` only (mainnet placeholder)
-- Chains: `ethereum` (Sepolia), `arbitrum` (Sepolia), `base` (mainnet, connected to testnet)
-- Tokens: USDC, fastUSDC, testUSDC
+- Chains: `ethereum` (Sepolia), `arbitrum` (Sepolia), `base` (chain ID `8453`, connected to testnet)
+- Tokens: USDC on EVM, plus `fastUSDC` and `testUSDC` aliases that normalize to the configured Fast-side USDC mapping
 
 ## API Reference
 
@@ -202,7 +202,7 @@ function createEvmExecutor(account: Account, rpcUrl: string, chainId: number): E
 **Parameters:**
 - `account` — viem Account from `createEvmWallet()` or `privateKeyToAccount()`
 - `rpcUrl` — RPC endpoint URL
-- `chainId` — Chain ID (11155111 for Sepolia, 421614 for Arbitrum Sepolia)
+- `chainId` — Chain ID (11155111 for Sepolia, 421614 for Arbitrum Sepolia, 8453 for Base)
 
 **Returns:** `{ walletClient, publicClient }`
 
@@ -375,11 +375,11 @@ await allset.sendToExternal({
 ### `TOKEN_NOT_FOUND`
 
 - Token not configured in `src/default-config.ts` or the active custom config
-- Supported: USDC, fastUSDC
+- Supported aliases: USDC, fastUSDC, testUSDC
 
 ### `UNSUPPORTED_OPERATION`
 
-- Chain not supported (use `ethereum` or `arbitrum`)
+- Chain not supported (use `ethereum`, `arbitrum`, or `base`)
 
 ### `TX_FAILED`
 
