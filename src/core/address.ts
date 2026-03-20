@@ -9,7 +9,7 @@ export function bytesToHex(bytes: Uint8Array): Hex {
   return `0x${hex}` as Hex;
 }
 
-export function fastAddressToBytes32(address: string): Hex {
+export function fastAddressToBytes(address: string): Uint8Array {
   let decoded: ReturnType<typeof bech32m.decode>;
 
   try {
@@ -28,5 +28,9 @@ export function fastAddressToBytes32(address: string): Hex {
     throw new Error(`Fast address must decode to 32 bytes. Got: ${bytes.length}`);
   }
 
-  return bytesToHex(bytes);
+  return bytes;
+}
+
+export function fastAddressToBytes32(address: string): Hex {
+  return bytesToHex(fastAddressToBytes(address));
 }

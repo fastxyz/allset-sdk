@@ -8,7 +8,6 @@ export interface FastWalletLike {
   /** Sender Fast address (fast1...) */
   readonly address: string;
   submit(params: {
-    recipient: string;
     claim: Record<string, unknown>;
   }): Promise<{
     txHash: string;
