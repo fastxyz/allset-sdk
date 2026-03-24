@@ -155,7 +155,7 @@ function resolveAllSetToken(
   network: 'testnet' | 'mainnet' = DEFAULT_NETWORK,
   provider?: BridgeProviderConfig,
 ): AllSetTokenInfo | null {
-  // Normalize token name - fastUSDC/testUSDC on Fast maps to USDC on EVM
+  // Normalize token name - testUSDC on Fast testnet maps to USDC on EVM
   const lowerToken = token.toLowerCase();
   const normalizedToken = (lowerToken === 'fastusdc' || lowerToken === 'testusdc') ? 'USDC' : token;
 
@@ -301,7 +301,7 @@ export interface EvmSignResult {
  *
  * @example
  * ```ts
- * const result = await fastWallet.send({ to: bridgeAddress, amount: '1000000', token: 'fastUSDC' });
+ * const result = await fastWallet.send({ to: bridgeAddress, amount: '1000000', token: 'USDC' });
  * const signed = await evmSign(result.certificate);
  * // Use signed.transaction and signed.signature with the relayer
  * ```
@@ -372,7 +372,7 @@ export async function executeBridge(params: BridgeParams, provider?: BridgeProvi
         'UNSUPPORTED_OPERATION',
         `AllSet only supports bridging between Fast network and configured EVM chains (${getSupportedChains(network, provider).join(', ') || 'none'}). Got: ${params.fromChain} → ${params.toChain}`,
         {
-          note: 'Use fromChain: "fast" for withdrawals, or toChain: "fast" for deposits.\n  Example: await allset.bridge({ fromChain: "ethereum-sepolia", toChain: "fast", fromToken: "USDC", toToken: "fastUSDC", amount: "1000000", senderAddress: "0x...", receiverAddress: "fast1..." })',
+          note: 'Use fromChain: "fast" for withdrawals, or toChain: "fast" for deposits.\n  Example: await allset.bridge({ fromChain: "base", toChain: "fast", fromToken: "USDC", toToken: "USDC", amount: "1000000", senderAddress: "0x...", receiverAddress: "fast1..." })',
         },
       );
     }
@@ -433,7 +433,7 @@ async function handleDeposit(
       'TOKEN_NOT_FOUND',
       `Cannot resolve token "${params.fromToken}" on AllSet for chain "${params.fromChain}".`,
       {
-        note: 'Supported tokens: USDC, fastUSDC, testUSDC.\n  Example: await allset.bridge({ fromChain: "arbitrum-sepolia", toChain: "fast", fromToken: "USDC", toToken: "fastUSDC", amount: "1000000", senderAddress: "0x...", receiverAddress: "fast1..." })',
+        note: 'Supported tokens: USDC (mainnet), testUSDC (testnet).\n  Example: await allset.bridge({ fromChain: "base", toChain: "fast", fromToken: "USDC", toToken: "USDC", amount: "1000000", senderAddress: "0x...", receiverAddress: "fast1..." })',
       },
     );
   }
@@ -595,7 +595,7 @@ export async function executeIntent(
       'TOKEN_NOT_FOUND',
       `Cannot resolve token "${token}" on AllSet for chain "${chain}".`,
       {
-        note: 'Supported tokens: USDC, fastUSDC, testUSDC.',
+        note: 'Supported tokens: USDC (mainnet), testUSDC (testnet).',
       },
     );
   }
@@ -742,7 +742,7 @@ async function handleWithdraw(
       'TOKEN_NOT_FOUND',
       `Cannot resolve token "${params.fromToken}" on AllSet for destination chain "${params.toChain}".`,
       {
-        note: 'Supported tokens: USDC, fastUSDC, testUSDC.',
+        note: 'Supported tokens: USDC (mainnet), testUSDC (testnet).',
       },
     );
   }

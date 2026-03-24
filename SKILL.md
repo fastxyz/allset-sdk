@@ -342,14 +342,14 @@ Is token a hex address (0x...)?
 └── NO → Is token 'USDC'?
          ├── YES → Use USDC config for the chain
          │
-         └── NO → Is token 'fastUSDC' or 'testUSDC'?
+         └── NO → Is token 'USDC' or 'testUSDC'?
                   ├── YES → Normalize to 'USDC'
                   │
                   └── NO → Throw TOKEN_NOT_FOUND
 ```
 
 **Token formats:**
-- Symbol: `'USDC'`, `'fastUSDC'`, `'testUSDC'`
+- Symbol: `'USDC'` (mainnet), `'testUSDC'` (testnet)
 - EVM Address: `'0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d'`
 
 ### Finding Supported Assets
@@ -380,7 +380,7 @@ For custom tokens, add them to `~/.allset/networks.json`.
 |------------|---------|----------------|
 | `INVALID_PARAMS` | Missing required param | Check: evmClients for deposit, fastWallet for withdraw |
 | `INVALID_ADDRESS` | Bad address format | Deposit receiver must be fast1..., withdraw receiver must be 0x... |
-| `TOKEN_NOT_FOUND` | Unknown token | Use USDC, fastUSDC, or testUSDC |
+| `TOKEN_NOT_FOUND` | Unknown token | Use USDC (mainnet) or testUSDC (testnet) |
 | `UNSUPPORTED_OPERATION` | Chain not supported | Testnet: arbitrum-sepolia, ethereum-sepolia. Mainnet: base, arbitrum |
 | `TX_FAILED` | Transaction rejected | Check balance, retry, or report error |
 
