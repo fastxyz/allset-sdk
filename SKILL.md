@@ -172,6 +172,13 @@ See [`fast-sdk` SKILL.md](https://github.com/fastxyz/fast-sdk/blob/main/SKILL.md
 }
 ```
 
+**viem interoperability:** `createEvmWallet()` returns a standard viem account. You can use existing viem accounts directly:
+```ts
+import { privateKeyToAccount } from 'viem/accounts';
+const account = privateKeyToAccount('0xabc123...');
+createEvmExecutor(account, rpcUrl, chainId);  // Works!
+```
+
 ---
 
 ### 4. Deposit: EVM → Fast

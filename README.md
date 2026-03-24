@@ -178,6 +178,24 @@ const evmClients = createEvmExecutor(
 2. Starts with `0x` or 64 hex chars → Derive from private key
 3. Contains `/`, `~`, or ends with `.json` → Load from keyfile
 
+### viem Interoperability
+
+`createEvmWallet()` returns a standard viem account (from `privateKeyToAccount`), so it's **fully interoperable**:
+
+```ts
+import { privateKeyToAccount } from 'viem/accounts';
+
+// These are equivalent:
+const account1 = createEvmWallet('0xabc123...');
+const account2 = privateKeyToAccount('0xabc123...');
+
+// Both work with createEvmExecutor:
+createEvmExecutor(account1, rpcUrl, chainId);
+createEvmExecutor(account2, rpcUrl, chainId);
+```
+
+You can use existing viem accounts directly — no need to re-wrap them.
+
 ---
 
 ## Common Operations
