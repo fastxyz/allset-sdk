@@ -143,7 +143,7 @@ See [`fast-sdk` SKILL.md](https://github.com/fastxyz/fast-sdk/blob/main/SKILL.md
 
    **Option C: From keyfile**
    ```ts
-   const account = createEvmWallet('~/.allset/.evm/keys/default.json');
+   const account = createEvmWallet('~/.evm/keys/default.json');
    ```
 
 3. Create executor for blockchain operations:
@@ -192,14 +192,14 @@ createEvmExecutor(account, rpcUrl, chainId);  // Works!
 1. Ensure setup is complete:
    ```ts
    const allset = new AllSetProvider({ network: 'testnet' });
-   const account = createEvmWallet('~/.allset/.evm/keys/default.json');
+   const account = createEvmWallet('~/.evm/keys/default.json');
    const evmClients = createEvmExecutor(account, RPC_URL, CHAIN_ID);
    ```
 
 2. Call sendToFast:
    ```ts
    const result = await allset.sendToFast({
-     chain: 'arbitrum-sepolia',   // EVM chain name
+     chain: 'arbitrum',           // EVM chain key
      token: 'USDC',               // Token symbol
      amount: '1000000',           // Amount in smallest units
      from: account.address,       // Sender EVM address
@@ -214,8 +214,8 @@ createEvmExecutor(account, rpcUrl, chainId);  // Works!
    ```
 
 **Chain IDs:**
-- `arbitrum-sepolia` → 421614
-- `ethereum-sepolia` → 11155111
+- `arbitrum` → 421614
+- `ethereum` → 11155111
 - `base` → 8453
 
 ---
@@ -238,7 +238,7 @@ createEvmExecutor(account, rpcUrl, chainId);  // Works!
 2. Call sendToExternal:
    ```ts
    const result = await allset.sendToExternal({
-     chain: 'arbitrum-sepolia',   // Target EVM chain
+     chain: 'arbitrum',           // Target EVM chain key
      token: 'USDC',               // Token symbol
      amount: '1000000',           // Amount in smallest units
      from: fastWallet.address,    // Sender Fast address
@@ -279,7 +279,7 @@ createEvmExecutor(account, rpcUrl, chainId);  // Works!
 3. Execute:
    ```ts
    const result = await allset.executeIntent({
-     chain: 'arbitrum-sepolia',
+     chain: 'arbitrum',
      fastWallet,
      token: 'USDC',
      amount: '1000000',
@@ -312,7 +312,7 @@ createEvmExecutor(account, rpcUrl, chainId);  // Works!
    ```ts
    const plan = buildDepositTransaction({
      network: 'testnet',
-     chain: 'arbitrum-sepolia',
+     chain: 'arbitrum',
      token: 'USDC',
      amount: 1_000_000n,
      receiver: 'fast1receiveraddress...',
@@ -357,8 +357,8 @@ Check [`src/default-config.ts`](./src/default-config.ts) for bundled tokens.
 
 | Chain | Token | EVM Address |
 |-------|-------|-------------|
-| `arbitrum-sepolia` | USDC | `0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d` |
-| `ethereum-sepolia` | USDC | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` |
+| `arbitrum` | USDC | `0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d` |
+| `ethereum` | USDC | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` |
 | `base` | USDC | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
 
 For custom tokens, add them to `~/.allset/networks.json`.
@@ -372,7 +372,7 @@ For custom tokens, add them to `~/.allset/networks.json`.
 | `INVALID_PARAMS` | Missing required param | Check: evmClients for deposit, fastWallet for withdraw |
 | `INVALID_ADDRESS` | Bad address format | Deposit receiver must be fast1..., withdraw receiver must be 0x... |
 | `TOKEN_NOT_FOUND` | Unknown token | Use USDC, fastUSDC, or testUSDC |
-| `UNSUPPORTED_OPERATION` | Chain not supported | Use arbitrum-sepolia, ethereum-sepolia, or base |
+| `UNSUPPORTED_OPERATION` | Chain not supported | Use arbitrum, ethereum, or base |
 | `TX_FAILED` | Transaction rejected | Check balance, retry, or report error |
 
 **Error handling pattern:**
@@ -422,7 +422,7 @@ try {
    await allset.sendToFast({ chain: 'polygon', ... });
    
    // CORRECT (supported chains)
-   await allset.sendToFast({ chain: 'arbitrum-sepolia', ... });
+   await allset.sendToFast({ chain: 'arbitrum', ... });
    ```
 
 6. **DO NOT** assume mainnet support — only testnet is currently available.
@@ -434,7 +434,7 @@ try {
 | Path | Purpose |
 |------|---------|
 | `~/.allset/networks.json` | Custom network config |
-| `~/.allset/.evm/keys/` | EVM wallet keyfiles |
+| `~/.evm/keys/` | EVM wallet keyfiles |
 | `~/.fast/keys/` | Fast wallet keyfiles (via fast-sdk) |
 
 ---
@@ -443,8 +443,8 @@ try {
 
 | Network | Chain | Chain ID | RPC Example |
 |---------|-------|----------|-------------|
-| Testnet | `arbitrum-sepolia` | 421614 | `https://sepolia-rollup.arbitrum.io/rpc` |
-| Testnet | `ethereum-sepolia` | 11155111 | `https://ethereum-sepolia-rpc.publicnode.com` |
+| Testnet | `arbitrum` | 421614 | `https://sepolia-rollup.arbitrum.io/rpc` |
+| Testnet | `ethereum` | 11155111 | `https://ethereum-sepolia-rpc.publicnode.com` |
 | Testnet | `base` | 8453 | `https://mainnet.base.org` |
 
 ---
@@ -477,7 +477,7 @@ import { FastProvider, FastWallet } from '@fastxyz/sdk';
 ```ts
 // Setup
 const allset = new AllSetProvider({ network: 'testnet' });
-const account = createEvmWallet('~/.allset/.evm/keys/default.json');
+const account = createEvmWallet('~/.evm/keys/default.json');
 const evmClients = createEvmExecutor(account, RPC_URL, CHAIN_ID);
 const fastProvider = new FastProvider({ network: 'testnet' });
 const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);

@@ -32,12 +32,12 @@ import { AllSetProvider, createEvmWallet, createEvmExecutor } from '@fastxyz/all
 const fastProvider = new FastProvider({ network: 'testnet' });
 const allset = new AllSetProvider({ network: 'testnet' });
 const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);
-const evmAccount = createEvmWallet('~/.allset/.evm/keys/default.json');
+const evmAccount = createEvmWallet('~/.evm/keys/default.json');
 const evmClients = createEvmExecutor(evmAccount, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
 
 // 2. Deposit: EVM → Fast
 await allset.sendToFast({
-  chain: 'arbitrum-sepolia',
+  chain: 'arbitrum',
   token: 'USDC',
   amount: '1000000',
   from: evmAccount.address,
@@ -47,7 +47,7 @@ await allset.sendToFast({
 
 // 3. Withdraw: Fast → EVM
 await allset.sendToExternal({
-  chain: 'arbitrum-sepolia',
+  chain: 'arbitrum',
   token: 'USDC',
   amount: '1000000',
   from: fastWallet.address,
@@ -145,7 +145,7 @@ const account = createEvmWallet('1234...64hexchars');
 ### From Keyfile
 
 ```ts
-const account = createEvmWallet('~/.allset/.evm/keys/default.json');
+const account = createEvmWallet('~/.evm/keys/default.json');
 ```
 
 **Keyfile format:**
@@ -206,7 +206,7 @@ Send tokens from an EVM chain to Fast network:
 
 ```ts
 await allset.sendToFast({
-  chain: 'arbitrum-sepolia',   // EVM chain
+  chain: 'arbitrum',           // EVM chain key
   token: 'USDC',               // Token symbol
   amount: '1000000',           // Amount in smallest units (6 decimals for USDC)
   from: evmAccount.address,    // Sender EVM address
@@ -221,7 +221,7 @@ Send tokens from Fast network to an EVM chain:
 
 ```ts
 await allset.sendToExternal({
-  chain: 'arbitrum-sepolia',   // Target EVM chain
+  chain: 'arbitrum',           // Target EVM chain key
   token: 'USDC',               // Token symbol
   amount: '1000000',           // Amount in smallest units
   from: fastWallet.address,    // Sender Fast address
@@ -240,7 +240,7 @@ Execute custom operations on EVM via intents:
 import { buildTransferIntent, buildExecuteIntent } from '@fastxyz/allset-sdk';
 
 await allset.executeIntent({
-  chain: 'arbitrum-sepolia',
+  chain: 'arbitrum',
   fastWallet,
   token: 'USDC',
   amount: '1000000',
@@ -271,7 +271,7 @@ import { buildDepositTransaction } from '@fastxyz/allset-sdk';
 
 const plan = buildDepositTransaction({
   network: 'testnet',
-  chain: 'arbitrum-sepolia',
+  chain: 'arbitrum',
   token: 'USDC',
   amount: 1_000_000n,
   receiver: 'fast1receiveraddress...',
@@ -305,8 +305,8 @@ Supported tokens are configured in [`src/default-config.ts`](./src/default-confi
 
 | Chain | Token | EVM Address |
 |-------|-------|-------------|
-| `arbitrum-sepolia` | USDC | `0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d` |
-| `ethereum-sepolia` | USDC | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` |
+| `arbitrum` | USDC | `0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d` |
+| `ethereum` | USDC | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` |
 | `base` | USDC | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
 
 To add custom tokens, create `~/.allset/networks.json` with your token config.
@@ -315,10 +315,11 @@ To add custom tokens, create `~/.allset/networks.json` with your token config.
 
 ```
 ~/.allset/
-├── networks.json      # Custom network config (overrides defaults)
-└── .evm/
-    └── keys/
-        └── default.json   # EVM wallet keyfiles
+└── networks.json      # Custom network config (overrides defaults)
+
+~/.evm/
+└── keys/
+    └── default.json   # EVM wallet keyfiles
 ```
 
 ### Custom Network Config
