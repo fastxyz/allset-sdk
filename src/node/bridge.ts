@@ -8,7 +8,7 @@
  *   Withdraw (Fast → EVM): transfer on Fast network + submit ExternalClaim intent + POST to relayer
  */
 
-import { decodeAbiParameters, encodeAbiParameters } from 'viem';
+import { bytesToHex, decodeAbiParameters, encodeAbiParameters } from 'viem';
 import type { BridgeParams, BridgeResult, AllSetChainConfig, AllSetTokenInfo, ExecuteIntentParams } from './types.js';
 import { fastAddressToBytes } from '../core/address.js';
 import { getNetworkConfig, getChainConfig, getTokenConfig, type ChainConfig, type TokenConfig } from './config.js';
@@ -614,7 +614,9 @@ export async function executeIntent(
 
   // Step 2: Cross-sign the transfer certificate
   const transferCrossSign = await evmSign(transferResult.certificate, crossSignUrl);
-  const transferFastTxId = transferResult.txHash as `0x${string}`;
+  const transferFastTxId = bytesToHex(
+    new Uint8Array(transferCrossSign.transaction).slice(32, 64),
+  ) as `0x${string}`;
 
   // Step 3: Build intent claim with provided intents
   const deadline = BigInt(Math.floor(Date.now() / 1000) + deadlineSeconds);
