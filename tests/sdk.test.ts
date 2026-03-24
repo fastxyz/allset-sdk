@@ -204,15 +204,36 @@ test('bundled testnet endpoints match the current manifest', () => {
     },
   });
 
-  assert.deepEqual(testnet.chains.base, {
+});
+
+test('bundled mainnet endpoints match the current manifest', () => {
+  const { mainnet } = DEFAULT_NETWORKS_CONFIG;
+
+  assert.equal(mainnet.crossSignUrl, 'https://cross-sign.allset.fast.xyz');
+
+  assert.deepEqual(mainnet.chains.base, {
     chainId: 8453,
-    bridgeContract: '0x83f0644FF860423539Dc6b6cA6d3b05a6F03337B',
-    fastBridgeAddress: 'fast1a4fza9xc8jcm7jp64a0ugtuyw3hkkmje02e8af9aaer4r0je4dpqz4uf58',
-    relayerUrl: 'https://testnet.allset.fast.xyz/base/relayer',
+    bridgeContract: '0x8677EdAA374b7A47ff0093947AABE4aCbB2D4538',
+    fastBridgeAddress: 'fast1aq2hlz8t3ex0vke7056zraxzetmxmpaw84ws9lljdhpqtqkctu4spty8l6',
+    relayerUrl: 'https://allset.fast.xyz/base/relayer',
     tokens: {
       USDC: {
         evmAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
-        fastTokenId: '874e6036509640b52dd5ea8df718686f883f504ec2ae42fb05254c866baa7d65',
+        fastTokenId: 'c655a12330da6af361d281b197996d2bc135aaed3b66278e729c2222291e9130',
+        decimals: 6,
+      },
+    },
+  });
+
+  assert.deepEqual(mainnet.chains.arbitrum, {
+    chainId: 42161,
+    bridgeContract: '0x8677EdAA374b7A47ff0093947AABE4aCbB2D4538',
+    fastBridgeAddress: 'fast1xzuzv3p3zl8pljk5cyq3xn0vpjj9jmhk53zlcv56mu04gwkg256s6ewung',
+    relayerUrl: 'https://allset.fast.xyz/arbitrum/relayer',
+    tokens: {
+      USDC: {
+        evmAddress: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+        fastTokenId: 'c655a12330da6af361d281b197996d2bc135aaed3b66278e729c2222291e9130',
         decimals: 6,
       },
     },
@@ -239,7 +260,14 @@ test('AllSetProvider exposes expected properties', () => {
   assert.equal(allset.network, 'testnet');
   assert.ok(allset.chains.includes('arbitrum-sepolia'));
   assert.ok(allset.chains.includes('ethereum-sepolia'));
+  assert.ok(allset.crossSignUrl.length > 0);
+});
+
+test('AllSetProvider exposes mainnet properties', () => {
+  const allset = new AllSetProvider({ network: 'mainnet' });
+  assert.equal(allset.network, 'mainnet');
   assert.ok(allset.chains.includes('base'));
+  assert.ok(allset.chains.includes('arbitrum'));
   assert.ok(allset.crossSignUrl.length > 0);
 });
 
@@ -274,11 +302,20 @@ test('AllSetProvider.getTokenConfig returns config and normalizes Fast token ali
   assert.ok(fastUsdcConfig);
   assert.deepEqual(fastUsdcConfig, usdcConfig);
 
+});
+
+test('AllSetProvider.getTokenConfig works for mainnet chains', () => {
+  const allset = new AllSetProvider({ network: 'mainnet' });
+  
   const baseUsdcConfig = allset.getTokenConfig('base', 'USDC');
-  const testUsdcConfig = allset.getTokenConfig('base', 'testUSDC');
   assert.ok(baseUsdcConfig);
-  assert.ok(testUsdcConfig);
-  assert.deepEqual(testUsdcConfig, baseUsdcConfig);
+  assert.equal(baseUsdcConfig.evmAddress, '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913');
+  assert.equal(baseUsdcConfig.decimals, 6);
+  
+  const arbUsdcConfig = allset.getTokenConfig('arbitrum', 'USDC');
+  assert.ok(arbUsdcConfig);
+  assert.equal(arbUsdcConfig.evmAddress, '0xaf88d065e77c8cC2239327C5EDb3A432268e5831');
+  assert.equal(arbUsdcConfig.decimals, 6);
 });
 
 test('AllSetProvider configPath drives sendToFast execution', async (t) => {
@@ -932,14 +969,14 @@ test('executeBridge withdrawal uses the default cross-sign URL without a provide
   assert.equal(urls[2], 'https://testnet.allset.fast.xyz/arbitrum-sepolia/relayer/relay');
 });
 
-test('executeBridge uses the exact bundled base relayer URL', async (t) => {
+test('executeBridge uses the exact bundled base relayer URL (mainnet)', async (t) => {
   const originalFetch = globalThis.fetch;
   const urls: string[] = [];
 
   globalThis.fetch = async (url) => {
     urls.push(String(url));
 
-    if (String(url) === 'https://testnet.allset.fast.xyz/base/relayer/relay') {
+    if (String(url) === 'https://allset.fast.xyz/base/relayer/relay') {
       return Response.json({ ok: true });
     }
 
@@ -955,10 +992,12 @@ test('executeBridge uses the exact bundled base relayer URL', async (t) => {
     globalThis.fetch = originalFetch;
   });
 
+  const allset = new AllSetProvider({ network: 'mainnet' });
+
   await executeBridge({
     fromChain: 'fast',
     toChain: 'base',
-    fromToken: 'fastUSDC',
+    fromToken: 'USDC',
     toToken: 'USDC',
     fromDecimals: 6,
     amount: '1000000',
@@ -970,7 +1009,7 @@ test('executeBridge uses the exact bundled base relayer URL', async (t) => {
         return { txHash: TX_HASH, certificate: { ok: true } };
       },
     } as any,
-  });
+  }, allset);
 
-  assert.equal(urls[2], 'https://testnet.allset.fast.xyz/base/relayer/relay');
+  assert.equal(urls[2], 'https://allset.fast.xyz/base/relayer/relay');
 });

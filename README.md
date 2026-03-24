@@ -301,13 +301,19 @@ The `token` field in `sendToFast`/`sendToExternal` accepts:
 
 Supported tokens are configured in [`src/default-config.ts`](./src/default-config.ts).
 
-**Current testnet tokens:**
+**Testnet tokens:**
 
 | Chain | Token | EVM Address |
 |-------|-------|-------------|
 | `arbitrum-sepolia` | USDC | `0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d` |
 | `ethereum-sepolia` | USDC | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` |
+
+**Mainnet tokens:**
+
+| Chain | Token | EVM Address |
+|-------|-------|-------------|
 | `base` | USDC | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
+| `arbitrum` | USDC | `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` |
 
 To add custom tokens, create `~/.allset/networks.json` with your token config.
 

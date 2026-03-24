@@ -213,10 +213,13 @@ createEvmExecutor(account, rpcUrl, chainId);  // Works!
    console.log('Deposit complete:', result);
    ```
 
-**Chain IDs:**
+**Testnet Chain IDs:**
 - `arbitrum-sepolia` → 421614
 - `ethereum-sepolia` → 11155111
+
+**Mainnet Chain IDs:**
 - `base` → 8453
+- `arbitrum` → 42161
 
 ---
 
@@ -353,13 +356,19 @@ Is token a hex address (0x...)?
 
 Check [`src/default-config.ts`](./src/default-config.ts) for bundled tokens.
 
-**Current testnet tokens:**
+**Testnet tokens:**
 
 | Chain | Token | EVM Address |
 |-------|-------|-------------|
 | `arbitrum-sepolia` | USDC | `0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d` |
 | `ethereum-sepolia` | USDC | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` |
+
+**Mainnet tokens:**
+
+| Chain | Token | EVM Address |
+|-------|-------|-------------|
 | `base` | USDC | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
+| `arbitrum` | USDC | `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` |
 
 For custom tokens, add them to `~/.allset/networks.json`.
 
@@ -372,7 +381,7 @@ For custom tokens, add them to `~/.allset/networks.json`.
 | `INVALID_PARAMS` | Missing required param | Check: evmClients for deposit, fastWallet for withdraw |
 | `INVALID_ADDRESS` | Bad address format | Deposit receiver must be fast1..., withdraw receiver must be 0x... |
 | `TOKEN_NOT_FOUND` | Unknown token | Use USDC, fastUSDC, or testUSDC |
-| `UNSUPPORTED_OPERATION` | Chain not supported | Use arbitrum-sepolia, ethereum-sepolia, or base |
+| `UNSUPPORTED_OPERATION` | Chain not supported | Testnet: arbitrum-sepolia, ethereum-sepolia. Mainnet: base, arbitrum |
 | `TX_FAILED` | Transaction rejected | Check balance, retry, or report error |
 
 **Error handling pattern:**
@@ -445,7 +454,8 @@ try {
 |---------|-------|----------|-------------|
 | Testnet | `arbitrum-sepolia` | 421614 | `https://sepolia-rollup.arbitrum.io/rpc` |
 | Testnet | `ethereum-sepolia` | 11155111 | `https://ethereum-sepolia-rpc.publicnode.com` |
-| Testnet | `base` | 8453 | `https://mainnet.base.org` |
+| Mainnet | `base` | 8453 | `https://mainnet.base.org` |
+| Mainnet | `arbitrum` | 42161 | `https://arb1.arbitrum.io/rpc` |
 
 ---
 
