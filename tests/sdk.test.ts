@@ -32,6 +32,12 @@ const FAST_ADDRESS = 'fast1rsxfj84yhsskpr6g5ll2td7pkk3dnlsfwldsmawca4922qn3dqvqs
 const EVM_ADDRESS = '0x1234567890123456789012345678901234567890';
 const TX_HASH = `0x${'11'.repeat(32)}`;
 
+// Mock transaction for cross-sign responses: 64 bytes with transferFastTxId at bytes 32-64
+const MOCK_CROSS_SIGN_TX = [
+  ...Array(32).fill(0),  // First 32 bytes (padding)
+  ...Array(32).fill(0x11),  // Bytes 32-64: transferFastTxId (matches TX_HASH)
+];
+
 // ---------------------------------------------------------------------------
 // Entrypoint Tests
 // ---------------------------------------------------------------------------
@@ -613,7 +619,7 @@ test('executeIntent infers external_address from execute target', async (t) => {
 
     return Response.json({
       result: {
-        transaction: [1, 2, 3],
+        transaction: MOCK_CROSS_SIGN_TX,
         signature: '0xsig',
       },
     });
@@ -651,7 +657,7 @@ test('executeIntent uses claim-scoped Fast recipients for bridge transfer and ex
 
     return Response.json({
       result: {
-        transaction: [1, 2, 3],
+        transaction: MOCK_CROSS_SIGN_TX,
         signature: '0xsig',
       },
     });
@@ -715,7 +721,7 @@ test('executeIntent rejects intents without an EVM target unless externalAddress
   globalThis.fetch = async () => {
     return Response.json({
       result: {
-        transaction: [1, 2, 3],
+        transaction: MOCK_CROSS_SIGN_TX,
         signature: '0xsig',
       },
     });
@@ -904,7 +910,7 @@ test('evmSign returns transaction and signature on success', async (t) => {
   const originalFetch = globalThis.fetch;
 
   const mockResult = {
-    transaction: [1, 2, 3, 4],
+    transaction: MOCK_CROSS_SIGN_TX,
     signature: '0xabcdef',
   };
 
@@ -937,7 +943,7 @@ test('executeBridge withdrawal uses the default cross-sign URL without a provide
 
     return Response.json({
       result: {
-        transaction: [1, 2, 3],
+        transaction: MOCK_CROSS_SIGN_TX,
         signature: '0xsig',
       },
     });
@@ -982,7 +988,7 @@ test('executeBridge uses the exact bundled base relayer URL (mainnet)', async (t
 
     return Response.json({
       result: {
-        transaction: [1, 2, 3],
+        transaction: MOCK_CROSS_SIGN_TX,
         signature: '0xsig',
       },
     });
