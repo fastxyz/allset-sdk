@@ -90,7 +90,32 @@ Need to execute bridge transactions?
 
 ---
 
-### 2. Setup EVM Wallet
+### 2. Setup Fast Wallet
+
+**When:** Need to withdraw from Fast to EVM.
+
+**Prerequisites:** None.
+
+**Steps:**
+
+1. Import from fast-sdk:
+   ```ts
+   import { FastProvider, FastWallet } from '@fastxyz/sdk';
+   ```
+
+2. Create provider and wallet:
+   ```ts
+   const fastProvider = new FastProvider({ network: 'testnet' });
+   const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);
+   ```
+
+3. Fast wallet is ready.
+
+See [`fast-sdk` SKILL.md](https://github.com/fastxyz/fast-sdk/blob/main/SKILL.md) for detailed wallet setup.
+
+---
+
+### 3. Setup EVM Wallet
 
 **When:** Need to deposit from EVM to Fast.
 
@@ -146,31 +171,6 @@ Need to execute bridge transactions?
   "address": "0x..."
 }
 ```
-
----
-
-### 3. Setup Fast Wallet
-
-**When:** Need to withdraw from Fast to EVM.
-
-**Prerequisites:** None.
-
-**Steps:**
-
-1. Import from fast-sdk:
-   ```ts
-   import { FastProvider, FastWallet } from '@fastxyz/sdk';
-   ```
-
-2. Create provider and wallet:
-   ```ts
-   const fastProvider = new FastProvider({ network: 'testnet' });
-   const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);
-   ```
-
-3. Fast wallet is ready.
-
-See [`fast-sdk` SKILL.md](https://github.com/fastxyz/fast-sdk/blob/main/SKILL.md) for detailed wallet setup.
 
 ---
 

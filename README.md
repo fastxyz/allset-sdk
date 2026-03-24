@@ -105,6 +105,21 @@ interface AllSetProviderOptions {
 
 ---
 
+## Fast Wallet Setup
+
+Fast wallet is required for withdrawals (Fast → EVM).
+
+```ts
+import { FastProvider, FastWallet } from '@fastxyz/sdk';
+
+const fastProvider = new FastProvider({ network: 'testnet' });
+const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);
+```
+
+See [`@fastxyz/sdk` documentation](https://github.com/fastxyz/fast-sdk) for wallet setup details.
+
+---
+
 ## EVM Wallet Setup
 
 EVM wallet is required for deposits (EVM → Fast).
@@ -162,21 +177,6 @@ const evmClients = createEvmExecutor(
 1. Omitted → Generate new random wallet
 2. Starts with `0x` or 64 hex chars → Derive from private key
 3. Contains `/`, `~`, or ends with `.json` → Load from keyfile
-
----
-
-## Fast Wallet Setup
-
-Fast wallet is required for withdrawals (Fast → EVM).
-
-```ts
-import { FastProvider, FastWallet } from '@fastxyz/sdk';
-
-const fastProvider = new FastProvider({ network: 'testnet' });
-const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);
-```
-
-See [`@fastxyz/sdk` documentation](https://github.com/fastxyz/fast-sdk) for wallet setup details.
 
 ---
 
