@@ -323,22 +323,38 @@ See [`fast-sdk` SKILL.md](https://github.com/fastxyz/fast-sdk/blob/main/SKILL.md
 
 ## Token Resolution
 
-Token symbols resolve as follows:
+The `token` field accepts symbols OR EVM addresses:
 
 ```
-Is token 'USDC'?
-├── YES → Use USDC config for the chain
+Is token a hex address (0x...)?
+├── YES → Match by EVM address in config
 │
-└── NO → Is token 'fastUSDC' or 'testUSDC'?
-         ├── YES → Normalize to 'USDC'
+└── NO → Is token 'USDC'?
+         ├── YES → Use USDC config for the chain
          │
-         └── NO → Throw TOKEN_NOT_FOUND
+         └── NO → Is token 'fastUSDC' or 'testUSDC'?
+                  ├── YES → Normalize to 'USDC'
+                  │
+                  └── NO → Throw TOKEN_NOT_FOUND
 ```
 
-**Supported tokens:**
-- `USDC` — Native USDC on EVM chain
-- `fastUSDC` — Alias for USDC (mainnet)
-- `testUSDC` — Alias for USDC (testnet)
+**Token formats:**
+- Symbol: `'USDC'`, `'fastUSDC'`, `'testUSDC'`
+- EVM Address: `'0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d'`
+
+### Finding Supported Assets
+
+Check [`src/default-config.ts`](./src/default-config.ts) for bundled tokens.
+
+**Current testnet tokens:**
+
+| Chain | Token | EVM Address |
+|-------|-------|-------------|
+| `arbitrum-sepolia` | USDC | `0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d` |
+| `ethereum-sepolia` | USDC | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` |
+| `base` | USDC | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
+
+For custom tokens, add them to `~/.allset/networks.json`.
 
 ---
 
