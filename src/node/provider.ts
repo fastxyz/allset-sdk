@@ -152,13 +152,13 @@ export class AllSetProvider {
 
   /**
    * Get token configuration for a chain.
-   * Handles fastUSDC/testUSDC -> USDC normalization.
+   * Handles testUSDC -> USDC normalization for testnet.
    */
   getTokenConfig(chain: string, token: string): TokenConfig | null {
     const chainConfig = this.getChainConfig(chain);
     if (!chainConfig) return null;
 
-    // Normalize: fastUSDC/testUSDC on Fast maps to USDC on EVM
+    // Normalize: testUSDC on Fast testnet maps to USDC on EVM
     const lowerToken = token.toLowerCase();
     const normalizedToken = lowerToken === 'fastusdc' || lowerToken === 'testusdc' ? 'USDC' : token;
 
@@ -200,12 +200,16 @@ export class AllSetProvider {
    */
   async sendToFast(params: SendToFastParams): Promise<BridgeResult> {
     const normalizedToken = params.token.toLowerCase();
+    // Map USDC to the correct Fast token: USDC for mainnet, testUSDC for testnet
+    const fastToken = normalizedToken === 'usdc' 
+      ? (this._network === 'mainnet' ? 'USDC' : 'testUSDC')
+      : params.token;
     const { executeBridge } = await import('./bridge.js');
     return executeBridge({
       fromChain: params.chain,
       toChain: 'fast',
       fromToken: params.token,
-      toToken: normalizedToken === 'usdc' ? 'fastUSDC' : params.token,
+      toToken: fastToken,
       fromDecimals: 6,
       amount: params.amount,
       senderAddress: params.from,
@@ -220,8 +224,8 @@ export class AllSetProvider {
    * @example
    * ```ts
    * const result = await allset.sendToExternal({
-   *   chain: 'arbitrum-sepolia',
-   *   token: 'fastUSDC',
+   *   chain: 'base',
+   *   token: 'USDC',
    *   amount: '1000000',
    *   from: fastWallet.address,
    *   to: '0xReceiverEvmAddress',
@@ -257,18 +261,18 @@ export class AllSetProvider {
    * 
    * // Simple transfer
    * const result = await allset.executeIntent({
-   *   chain: 'arbitrum-sepolia',
+   *   chain: 'base',
    *   fastWallet, // Compatible Fast wallet, e.g. FastWallet from @fastxyz/sdk
-   *   token: 'fastUSDC',
+   *   token: 'USDC',
    *   amount: '1000000',
    *   intents: [buildTransferIntent(USDC_ADDRESS, '0xRecipient')],
    * });
    * 
    * // Custom contract call
    * const result = await allset.executeIntent({
-   *   chain: 'arbitrum-sepolia',
+   *   chain: 'base',
    *   fastWallet, // Compatible Fast wallet, e.g. FastWallet from @fastxyz/sdk
-   *   token: 'fastUSDC',
+   *   token: 'USDC',
    *   amount: '1000000',
    *   intents: [buildExecuteIntent(CONTRACT, calldata)],
    *   externalAddress: CONTRACT,

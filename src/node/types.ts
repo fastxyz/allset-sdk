@@ -69,7 +69,7 @@ export interface SendToFastParams {
 export interface SendToExternalParams {
   /** Destination EVM chain, for example 'ethereum-sepolia', 'arbitrum-sepolia', or 'base' */
   chain: string;
-  /** Token symbol (e.g., 'fastUSDC' or 'USDC') */
+  /** Token symbol (e.g., 'USDC' for mainnet, 'testUSDC' for testnet) */
   token: string;
   /** Amount in smallest units (e.g., '1000000' for 1 USDC) */
   amount: string;
@@ -89,7 +89,7 @@ export interface ExecuteIntentParams {
   chain: string;
   /** Compatible Fast wallet, for example FastWallet from @fastxyz/sdk */
   fastWallet: FastWalletLike;
-  /** Token to transfer to bridge (e.g., 'fastUSDC') */
+  /** Token to transfer to bridge (e.g., 'USDC') */
   token: string;
   /** Amount in smallest units */
   amount: string;

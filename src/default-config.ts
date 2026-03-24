@@ -31,23 +31,37 @@ export const DEFAULT_NETWORKS_CONFIG = {
           },
         },
       },
+    },
+  },
+  mainnet: {
+    crossSignUrl: 'https://cross-sign.allset.fast.xyz',
+    chains: {
       base: {
         chainId: 8453,
-        bridgeContract: '0x83f0644FF860423539Dc6b6cA6d3b05a6F03337B',
-        fastBridgeAddress: 'fast1a4fza9xc8jcm7jp64a0ugtuyw3hkkmje02e8af9aaer4r0je4dpqz4uf58',
-        relayerUrl: 'https://testnet.allset.fast.xyz/base/relayer',
+        bridgeContract: '0x8677EdAA374b7A47ff0093947AABE4aCbB2D4538',
+        fastBridgeAddress: 'fast1aq2hlz8t3ex0vke7056zraxzetmxmpaw84ws9lljdhpqtqkctu4spty8l6',
+        relayerUrl: 'https://allset.fast.xyz/base/relayer',
         tokens: {
           USDC: {
             evmAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
-            fastTokenId: '874e6036509640b52dd5ea8df718686f883f504ec2ae42fb05254c866baa7d65',
+            fastTokenId: 'c655a12330da6af361d281b197996d2bc135aaed3b66278e729c2222291e9130',
+            decimals: 6,
+          },
+        },
+      },
+      arbitrum: {
+        chainId: 42161,
+        bridgeContract: '0x8677EdAA374b7A47ff0093947AABE4aCbB2D4538',
+        fastBridgeAddress: 'fast1xzuzv3p3zl8pljk5cyq3xn0vpjj9jmhk53zlcv56mu04gwkg256s6ewung',
+        relayerUrl: 'https://allset.fast.xyz/arbitrum/relayer',
+        tokens: {
+          USDC: {
+            evmAddress: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+            fastTokenId: 'c655a12330da6af361d281b197996d2bc135aaed3b66278e729c2222291e9130',
             decimals: 6,
           },
         },
       },
     },
-  },
-  mainnet: {
-    crossSignUrl: 'https://cross-sign.allset.fast.xyz',
-    chains: {},
   },
 } satisfies AllNetworksConfig;
