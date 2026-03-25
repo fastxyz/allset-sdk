@@ -10,13 +10,7 @@ Bridge tokens between Fast network and EVM chains.
 
 ## Install
 
-Pure helpers only:
-
-```bash
-npm install @fastxyz/allset-sdk
-```
-
-Node bridge execution:
+For node bridge execution and pure helpers only:
 
 ```bash
 npm install @fastxyz/allset-sdk
