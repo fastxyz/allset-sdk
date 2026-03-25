@@ -306,11 +306,34 @@ export interface EvmSignResult {
  * // Use signed.transaction and signed.signature with the relayer
  * ```
  */
+/**
+ * Convert BigInt values to numbers recursively for JSON serialization.
+ * The cross-sign service expects numbers, not BigInt strings.
+ */
+function bigIntToNumber(obj: unknown): unknown {
+  if (typeof obj === 'bigint') {
+    return Number(obj);
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(bigIntToNumber);
+  }
+  if (obj !== null && typeof obj === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+      result[key] = bigIntToNumber(value);
+    }
+    return result;
+  }
+  return obj;
+}
+
 export async function evmSign(
   certificate: unknown,
   crossSignUrl?: string,
 ): Promise<EvmSignResult> {
   const url = crossSignUrl ?? getNetworkConfig(DEFAULT_NETWORK).crossSignUrl;
+  // Convert BigInt values to numbers for cross-sign compatibility
+  const serializedCertificate = bigIntToNumber(certificate);
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -318,7 +341,7 @@ export async function evmSign(
       jsonrpc: '2.0',
       id: 1,
       method: 'crossSign_evmSignCertificate',
-      params: { certificate },
+      params: { certificate: serializedCertificate },
     }),
   });
 
