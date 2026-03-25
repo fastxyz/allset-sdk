@@ -44,6 +44,8 @@ Need to execute bridge transactions?
 
 **Default choice:** `@fastxyz/allset-sdk/node` — covers most agent use cases.
 
+`@fastxyz/sdk` is optional for pure helpers and EVM → Fast deposits. Install it when you use FastWallet-backed flows such as `sendToExternal(...)` or `executeIntent(...)`.
+
 ---
 
 ## Workflows
@@ -143,7 +145,7 @@ See [`fast-sdk` SKILL.md](https://github.com/fastxyz/fast-sdk/blob/main/SKILL.md
 
    **Option C: From keyfile**
    ```ts
-   const account = createEvmWallet('~/.allset/.evm/keys/default.json');
+   const account = createEvmWallet('~/.evm/keys/default.json');
    ```
 
 3. Create executor for blockchain operations:
@@ -192,7 +194,7 @@ createEvmExecutor(account, rpcUrl, chainId);  // Works!
 1. Ensure setup is complete:
    ```ts
    const allset = new AllSetProvider({ network: 'testnet' });
-   const account = createEvmWallet('~/.allset/.evm/keys/default.json');
+   const account = createEvmWallet('~/.evm/keys/default.json');
    const evmClients = createEvmExecutor(account, RPC_URL, CHAIN_ID);
    ```
 
@@ -443,7 +445,7 @@ try {
 | Path | Purpose |
 |------|---------|
 | `~/.allset/networks.json` | Custom network config |
-| `~/.allset/.evm/keys/` | EVM wallet keyfiles |
+| `~/.evm/keys/` | EVM wallet keyfiles |
 | `~/.fast/keys/` | Fast wallet keyfiles (via fast-sdk) |
 
 ---
@@ -487,7 +489,7 @@ import { FastProvider, FastWallet } from '@fastxyz/sdk';
 ```ts
 // Setup
 const allset = new AllSetProvider({ network: 'testnet' });
-const account = createEvmWallet('~/.allset/.evm/keys/default.json');
+const account = createEvmWallet('~/.evm/keys/default.json');
 const evmClients = createEvmExecutor(account, RPC_URL, CHAIN_ID);
 const fastProvider = new FastProvider({ network: 'testnet' });
 const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);

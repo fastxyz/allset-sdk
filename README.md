@@ -10,13 +10,13 @@ Bridge tokens between Fast network and EVM chains.
 
 ## Install
 
-Pure helpers only:
+For node bridge execution and pure helpers only:
 
 ```bash
 npm install @fastxyz/allset-sdk
 ```
 
-Full bridge execution (requires [`@fastxyz/sdk`](https://github.com/fastxyz/fast-sdk)):
+Install [`@fastxyz/sdk`](https://github.com/fastxyz/fast-sdk) only for FastWallet-backed flows such as `sendToExternal(...)` and `executeIntent(...)`:
 
 ```bash
 npm install @fastxyz/allset-sdk @fastxyz/sdk
@@ -32,7 +32,7 @@ import { AllSetProvider, createEvmWallet, createEvmExecutor } from '@fastxyz/all
 const fastProvider = new FastProvider({ network: 'testnet' });
 const allset = new AllSetProvider({ network: 'testnet' });
 const fastWallet = await FastWallet.fromKeyfile('~/.fast/keys/default.json', fastProvider);
-const evmAccount = createEvmWallet('~/.allset/.evm/keys/default.json');
+const evmAccount = createEvmWallet('~/.evm/keys/default.json');
 const evmClients = createEvmExecutor(evmAccount, 'https://sepolia-rollup.arbitrum.io/rpc', 421614);
 
 // 2. Deposit: EVM → Fast
@@ -145,7 +145,7 @@ const account = createEvmWallet('1234...64hexchars');
 ### From Keyfile
 
 ```ts
-const account = createEvmWallet('~/.allset/.evm/keys/default.json');
+const account = createEvmWallet('~/.evm/keys/default.json');
 ```
 
 **Keyfile format:**
@@ -321,10 +321,11 @@ To add custom tokens, create `~/.allset/networks.json` with your token config.
 
 ```
 ~/.allset/
-├── networks.json      # Custom network config (overrides defaults)
-└── .evm/
-    └── keys/
-        └── default.json   # EVM wallet keyfiles
+└── networks.json      # Custom network config (overrides defaults)
+
+~/.evm/
+└── keys/
+    └── default.json   # EVM wallet keyfiles
 ```
 
 ### Custom Network Config

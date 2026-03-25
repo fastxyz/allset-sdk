@@ -22,11 +22,11 @@ Trusted publishing is the expected path for this repo. Do not add a long-lived n
 ## Release flow
 
 1. Update `package.json` with the next semver version.
-2. Run `npm install` if the lockfile needs refreshing.
+2. Refresh and commit `package-lock.json` whenever the version or dependencies change so the publish workflow can run `npm ci` from the tagged commit.
 3. Merge the release commit to `main`.
 4. Create and push a matching tag in the form `vX.Y.Z`.
 5. GitHub Actions runs `.github/workflows/publish.yml` on that tag push.
-6. The workflow verifies the tag, installs dependencies, builds, tests, checks the tarball, smoke-tests the packed artifact, and runs `npm publish --provenance`.
+6. The workflow verifies the tag, installs dependencies, builds, tests, checks the tarball, smoke-tests the packed artifact, and runs `npm publish --access public --provenance`.
 7. Verify the package on npm and test a fresh install with `npm install @fastxyz/allset-sdk`.
 
 ## Release invariants
