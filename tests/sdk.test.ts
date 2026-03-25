@@ -65,7 +65,7 @@ test('package metadata requires the claim-scoped Fast SDK release', () => {
   };
 
   assert.equal(packageJson.peerDependencies?.['@fastxyz/sdk'], '>=0.2.4');
-  assert.equal(packageJson.devDependencies?.['@fastxyz/sdk'], '^0.2.4');
+  assert.equal(packageJson.devDependencies?.['@fastxyz/sdk'], '^0.2.5');
 });
 
 // ---------------------------------------------------------------------------
