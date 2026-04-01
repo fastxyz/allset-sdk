@@ -1,8 +1,6 @@
-/**
- * @fastxyz/allset-sdk — browser-safe core helpers
- *
- * Root exports are pure helpers only. Use `@fastxyz/allset-sdk/node` for
- * provider, executor, wallet, bridge execution, and file-backed config APIs.
- */
-
-export * from './core/index.js';
+export * from './address.js';
+export * from './deposit.js';
+export * from './intents.js';
+export * from './types.js';
+export * from './evm-executor.js';
+export * from './bridge.js';
