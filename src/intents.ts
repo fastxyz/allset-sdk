@@ -6,7 +6,7 @@
  */
 
 import { encodeAbiParameters } from 'viem';
-import { fastAddressToBytes32 } from './core/address.js';
+import { fastAddressToBytes32 } from './address.js';
 
 // ---------------------------------------------------------------------------
 // Types

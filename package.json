@@ -16,18 +16,6 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
-    },
-    "./core": {
-      "import": "./dist/core/index.js",
-      "types": "./dist/core/index.d.ts"
-    },
-    "./browser": {
-      "import": "./dist/browser/index.js",
-      "types": "./dist/browser/index.d.ts"
-    },
-    "./node": {
-      "import": "./dist/node/index.js",
-      "types": "./dist/node/index.d.ts"
     }
   },
   "files": [
@@ -59,22 +47,14 @@
   },
   "homepage": "https://github.com/fastxyz/allset-sdk#readme",
   "dependencies": {
+    "@fastxyz/sdk": "^0.2.5",
     "@mysten/bcs": "^2.0.2",
     "@noble/ed25519": "^3.0.0",
     "@noble/hashes": "^2.0.1",
     "bech32": "^2.0.0",
     "viem": "^2.46.2"
   },
-  "peerDependencies": {
-    "@fastxyz/sdk": ">=0.2.4"
-  },
-  "peerDependenciesMeta": {
-    "@fastxyz/sdk": {
-      "optional": true
-    }
-  },
   "devDependencies": {
-    "@fastxyz/sdk": "^0.2.5",
     "@types/node": "^22.19.11",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
