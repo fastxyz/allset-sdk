@@ -764,7 +764,7 @@ test('createEvmExecutor rejects unsupported chain ids', (t) => {
 
   const account = createEvmWallet(keyfile);
   assert.throws(
-    () => createEvmExecutor(account, 'http://localhost:8545', 1),
+    () => createEvmExecutor(account, 'http://localhost:8545', 999),
     /Unsupported EVM chain ID/,
   );
 });
