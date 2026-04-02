@@ -36,6 +36,19 @@ export const DEFAULT_NETWORKS_CONFIG = {
   mainnet: {
     crossSignUrl: 'https://cross-sign.allset.fast.xyz',
     chains: {
+      ethereum: {
+        chainId: 1,
+        bridgeContract: '0x8677EdAA374b7A47ff0093947AABE4aCbB2D4538',
+        fastBridgeAddress: 'fast1x8xphxc78pdaljjs0reh7xpp8xv6pnhyq2pmnmumne49axtjwm4seau7c8',
+        relayerUrl: 'https://allset.fast.xyz/ethereum/relayer',
+        tokens: {
+          USDC: {
+            evmAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+            fastTokenId: 'c655a12330da6af361d281b197996d2bc135aaed3b66278e729c2222291e9130',
+            decimals: 6,
+          },
+        },
+      },
       base: {
         chainId: 8453,
         bridgeContract: '0x8677EdAA374b7A47ff0093947AABE4aCbB2D4538',
