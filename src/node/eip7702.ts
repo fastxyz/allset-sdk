@@ -1,0 +1,336 @@
+/**
+ * eip7702.ts — EIP-7702 smartDeposit via AllSet Portal relay
+ *
+ * Flow:
+ *   1. Poll ERC-20 balance until >= minAmount
+ *   2. POST /userop/prepare  → backend assembles UserOp + paymasterData
+ *   3. Sign EIP-7702 authorization (re-delegate EOA to v0.8 impl)
+ *   4. Sign UserOperation (EIP-712, v0.8)
+ *   5. POST /userop/submit  → backend calls Pimlico eth_sendUserOperation
+ *
+ * Private key never leaves the SDK.
+ * Pimlico API key never touches the SDK.
+ * Gas is paid in USDC via ERC-20 Paymaster.
+ * Chain is inferred from rpcUrl (backend calls eth_chainId) — no hardcoded chain list.
+ */
+
+import {
+  createPublicClient,
+  encodePacked,
+  http,
+  keccak256,
+  parseAbi,
+  type Address,
+  type Hash,
+  type Hex,
+} from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { getUserOperationTypedData, type UserOperation } from 'viem/account-abstraction';
+
+const ENTRY_POINT_V08 = '0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108' as Address;
+
+const ERC20_BALANCEOF_ABI = parseAbi([
+  'function balanceOf(address account) view returns (uint256)',
+]);
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface SmartDepositParams {
+  /** EOA private key — stays local, never sent to backend */
+  privateKey: Hex;
+  /** EVM JSON-RPC URL — used for balance polling and forwarded to backend for chainId detection */
+  rpcUrl: string;
+  /** AllSet Portal backend base URL, e.g. https://api.allset.xyz */
+  allsetApiUrl: string;
+  /** ERC-20 token to watch (e.g. USDC on Base) */
+  tokenAddress: Address;
+  /** Minimum token balance (raw, with decimals) that triggers deposit */
+  minAmount: bigint;
+  /** AllSet bridge contract address */
+  bridgeAddress: Address;
+  /** Encoded bridge.deposit(...) calldata from encodeDepositCalldata() */
+  depositCalldata: Hex;
+  /** Balance poll interval in ms (default: 3000) */
+  pollIntervalMs?: number;
+  /** Total timeout in ms waiting for balance (default: no timeout) */
+  timeoutMs?: number;
+  /** Called on each balance check */
+  onBalanceCheck?: (balance: bigint) => void;
+}
+
+export interface SmartDepositResult {
+  txHash: Hash;
+  userOpHash: Hash;
+  userAddress: Address;
+  /** Token balance at the time of deposit */
+  tokenBalance: bigint;
+}
+
+// ─── Backend API shapes ───────────────────────────────────────────────────────
+
+// Raw shapes as returned by the Go backend (numeric fields as hex strings)
+interface RawUserOp {
+  sender: string;
+  nonce: string;
+  callData: string;
+  callGasLimit: string;
+  verificationGasLimit: string;
+  preVerificationGas: string;
+  maxFeePerGas: string;
+  maxPriorityFeePerGas: string;
+  paymaster?: string;
+  paymasterVerificationGasLimit?: string;
+  paymasterPostOpGasLimit?: string;
+  paymasterData?: string;
+  factory?: string;
+  factoryData?: string;
+}
+
+interface PrepareRequest {
+  rpcUrl: string;
+  from: Address;
+  tokenAddress: Address;
+  amount: string;
+  bridgeAddress: Address;
+  depositCalldata: Hex;
+  timestamp: number;
+  authSig: Hex;
+}
+
+interface PrepareResponse {
+  unsignedUserOp: RawUserOp;
+  delegate7702Address: Address;
+  needsAuthorization: boolean;
+}
+
+// eip7702Auth format expected by Pimlico bundler (all numerics as 0x hex strings)
+interface Eip7702Auth {
+  address: Address;
+  chainId: Hex;
+  nonce: Hex;
+  yParity: Hex;
+  r: Hex;
+  s: Hex;
+}
+
+interface RawUserOpWithAuth extends RawUserOp {
+  eip7702Auth?: Eip7702Auth;
+}
+
+interface SubmitRequest {
+  rpcUrl: string;
+  signedUserOp: RawUserOpWithAuth;
+}
+
+interface SubmitResponse {
+  txHash: Hash;
+  userOpHash: Hash;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Convert the backend's hex-string UserOp to viem's bigint-typed UserOperation<'0.8'>.
+ */
+function parseUserOp(raw: RawUserOp): UserOperation<'0.8'> {
+  return {
+    sender: raw.sender as Address,
+    nonce: BigInt(raw.nonce),
+    callData: raw.callData as Hex,
+    callGasLimit: BigInt(raw.callGasLimit),
+    verificationGasLimit: BigInt(raw.verificationGasLimit),
+    preVerificationGas: BigInt(raw.preVerificationGas),
+    maxFeePerGas: BigInt(raw.maxFeePerGas),
+    maxPriorityFeePerGas: BigInt(raw.maxPriorityFeePerGas),
+    ...(raw.paymaster && { paymaster: raw.paymaster as Address }),
+    ...(raw.paymasterVerificationGasLimit && {
+      paymasterVerificationGasLimit: BigInt(raw.paymasterVerificationGasLimit),
+    }),
+    ...(raw.paymasterPostOpGasLimit && {
+      paymasterPostOpGasLimit: BigInt(raw.paymasterPostOpGasLimit),
+    }),
+    ...(raw.paymasterData && { paymasterData: raw.paymasterData as Hex }),
+    ...(raw.factory && { factory: raw.factory as Address }),
+    ...(raw.factoryData && { factoryData: raw.factoryData as Hex }),
+    signature: '0x',
+  };
+}
+
+/**
+ * Convert UserOperation<'0.8'> bigint fields → hex strings for JSON serialization.
+ * The Go backend expects all numeric fields as 0x-prefixed hex strings.
+ */
+function serializeUserOp(op: UserOperation<'0.8'>): RawUserOpWithAuth {
+  const toHex = (n: bigint) => `0x${n.toString(16)}`;
+  return {
+    sender: op.sender,
+    nonce: toHex(op.nonce),
+    callData: op.callData,
+    callGasLimit: toHex(op.callGasLimit),
+    verificationGasLimit: toHex(op.verificationGasLimit),
+    preVerificationGas: toHex(op.preVerificationGas),
+    maxFeePerGas: toHex(op.maxFeePerGas),
+    maxPriorityFeePerGas: toHex(op.maxPriorityFeePerGas),
+    ...(op.paymaster && { paymaster: op.paymaster }),
+    ...(op.paymasterVerificationGasLimit !== undefined && {
+      paymasterVerificationGasLimit: toHex(op.paymasterVerificationGasLimit),
+    }),
+    ...(op.paymasterPostOpGasLimit !== undefined && {
+      paymasterPostOpGasLimit: toHex(op.paymasterPostOpGasLimit),
+    }),
+    ...(op.paymasterData && { paymasterData: op.paymasterData }),
+    ...(op.factory && { factory: op.factory }),
+    ...(op.factoryData && { factoryData: op.factoryData }),
+    ...(op.signature && { signature: op.signature }),
+  };
+}
+
+// ─── Main function ─────────────────────────────────────────────────────────────
+
+export async function smartDeposit(params: SmartDepositParams): Promise<SmartDepositResult> {
+  const {
+    privateKey,
+    rpcUrl,
+    allsetApiUrl,
+    tokenAddress,
+    minAmount,
+    bridgeAddress,
+    depositCalldata,
+    pollIntervalMs = 3000,
+    timeoutMs,
+    onBalanceCheck,
+  } = params;
+
+  const eoa = privateKeyToAccount(privateKey);
+  // No chain object needed — chainId is fetched dynamically from the RPC
+  const publicClient = createPublicClient({ transport: http(rpcUrl) });
+
+  // Step 1: Poll ERC-20 balance
+  const startTime = Date.now();
+  let tokenBalance = 0n;
+
+  while (true) {
+    if (timeoutMs && Date.now() - startTime > timeoutMs) {
+      throw new Error('smartDeposit: timed out waiting for balance');
+    }
+
+    tokenBalance = (await publicClient.readContract({
+      address: tokenAddress,
+      abi: ERC20_BALANCEOF_ABI,
+      functionName: 'balanceOf',
+      args: [eoa.address],
+    })) as bigint;
+
+    onBalanceCheck?.(tokenBalance);
+    if (tokenBalance >= minAmount) break;
+
+    await sleep(pollIntervalMs);
+  }
+
+  // Fetch chainId once — used for EIP-7702 auth and UserOp signing
+  const chainId = await publicClient.getChainId();
+
+  // Step 2: Build request auth signature (proves caller owns the private key)
+  // Backend verifies: ecrecover(hash, authSig) == from
+  const timestamp = Math.floor(Date.now() / 1000);
+  const msgHash = keccak256(
+    encodePacked(
+      ['address', 'address', 'uint256', 'address', 'bytes', 'uint256'],
+      [eoa.address, tokenAddress, minAmount, bridgeAddress, depositCalldata, BigInt(timestamp)],
+    ),
+  );
+  const authSig = await eoa.signMessage({ message: { raw: msgHash } });
+
+  // Step 3: POST /userop/prepare
+  const prepareReq: PrepareRequest = {
+    rpcUrl,
+    from: eoa.address,
+    tokenAddress,
+    amount: minAmount.toString(),
+    bridgeAddress,
+    depositCalldata,
+    timestamp,
+    authSig,
+  };
+
+  const prepareRes = await fetch(`${allsetApiUrl}/userop/prepare`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(prepareReq),
+  });
+
+  if (!prepareRes.ok) {
+    const err = await prepareRes.text();
+    throw new Error(`smartDeposit prepare failed (${prepareRes.status}): ${err}`);
+  }
+
+  const prepared = (await prepareRes.json()) as PrepareResponse;
+
+  // Step 4: Sign EIP-7702 authorization.
+  // We always re-sign to ensure the EOA is delegated to the correct v0.8 impl,
+  // even if a prior (possibly outdated) delegation exists.
+  let eip7702Auth: Eip7702Auth | undefined;
+  if (prepared.needsAuthorization) {
+    const accountNonce = await publicClient.getTransactionCount({ address: eoa.address });
+    const signed = await eoa.signAuthorization({
+      address: prepared.delegate7702Address,
+      chainId,
+      nonce: accountNonce,
+    });
+    const yParity = signed.yParity ?? 0;
+    eip7702Auth = {
+      address: prepared.delegate7702Address,
+      chainId: `0x${chainId.toString(16)}` as Hex,
+      nonce: `0x${accountNonce.toString(16)}` as Hex,
+      yParity: `0x${yParity.toString(16)}` as Hex,
+      r: `0x${BigInt(signed.r).toString(16).padStart(64, '0')}` as Hex,
+      s: `0x${BigInt(signed.s).toString(16).padStart(64, '0')}` as Hex,
+    };
+  }
+
+  // Step 5: Parse backend response + sign UserOperation (v0.8 uses EIP-712 typed data)
+  const userOpToSign: UserOperation<'0.8'> = parseUserOp(prepared.unsignedUserOp);
+
+  // v0.8 requires EIP-712 signTypedData, NOT signMessage/personal_sign
+  const typedData = getUserOperationTypedData({
+    chainId,
+    entryPointAddress: ENTRY_POINT_V08,
+    userOperation: { ...userOpToSign, signature: '0x' },
+  });
+  const signature = await eoa.signTypedData(typedData);
+  const signedUserOp: UserOperation<'0.8'> = { ...userOpToSign, signature };
+
+  // Step 6: POST /userop/submit
+  const serialized = serializeUserOp(signedUserOp);
+  if (eip7702Auth) {
+    serialized.eip7702Auth = eip7702Auth;
+  }
+  const submitReq: SubmitRequest = {
+    rpcUrl,
+    signedUserOp: serialized,
+  };
+
+  const submitRes = await fetch(`${allsetApiUrl}/userop/submit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(submitReq),
+  });
+
+  if (!submitRes.ok) {
+    const err = await submitRes.text();
+    throw new Error(`smartDeposit submit failed (${submitRes.status}): ${err}`);
+  }
+
+  const { txHash, userOpHash: returnedUserOpHash } = (await submitRes.json()) as SubmitResponse;
+
+  return {
+    txHash,
+    userOpHash: returnedUserOpHash,
+    userAddress: eoa.address,
+    tokenBalance,
+  };
+}

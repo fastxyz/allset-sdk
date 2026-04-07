@@ -1,4 +1,5 @@
 export * from '../core/index.js';
+export * from './eip7702.js';
 
 export {
   AllSetProvider,
