@@ -26,6 +26,7 @@ import {
   AllSetProvider,
   executeBridge,
   evmSign,
+  smartDeposit,
 } from '../src/node/index.ts';
 
 const FAST_ADDRESS = 'fast1rsxfj84yhsskpr6g5ll2td7pkk3dnlsfwldsmawca4922qn3dqvqsxelzv';
@@ -1018,4 +1019,88 @@ test('executeBridge uses the exact bundled base relayer URL (mainnet)', async (t
   }, allset);
 
   assert.equal(urls[2], 'https://allset.fast.xyz/base/relayer/relay');
+});
+
+// ---------------------------------------------------------------------------
+// EIP-7702 smartDeposit Tests
+// ---------------------------------------------------------------------------
+
+test('smartDeposit is exported from node entry', () => {
+  assert.equal(typeof smartDeposit, 'function');
+});
+
+test('smartDeposit rejects when balance timeout expires before minimum is met', async () => {
+  const PRIVATE_KEY = '0x31c269fb59cf298908f57189aa5418e724f3513ae69d21bbafe78210a09712e6';
+  const originalFetch = globalThis.fetch;
+
+  // Return valid uint256(0) for every RPC call — balance stays 0, poll loop times out
+  globalThis.fetch = async () => {
+    return Response.json({
+      jsonrpc: '2.0',
+      id: 1,
+      result: '0x0000000000000000000000000000000000000000000000000000000000000000',
+    });
+  };
+
+  try {
+    await assert.rejects(
+      () => smartDeposit({
+        privateKey: PRIVATE_KEY,
+        rpcUrl: 'https://mainnet.base.org',
+        allsetApiUrl: 'http://localhost:9999',
+        tokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+        minAmount: 1_000_000n,
+        bridgeAddress: '0x8677EdAA374b7A47ff0093947AABE4aCbB2D4538',
+        depositCalldata: '0xdeadbeef',
+        pollIntervalMs: 10,
+        timeoutMs: 50,
+      }),
+      (err: unknown) => {
+        assert.match(String(err), /timed out/i);
+        return true;
+      },
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('smartDeposit rejects with prepare error when backend returns 500', async () => {
+  const PRIVATE_KEY = '0x31c269fb59cf298908f57189aa5418e724f3513ae69d21bbafe78210a09712e6';
+  const originalFetch = globalThis.fetch;
+
+  // Return 10 USDC balance for RPC calls, 500 for prepare
+  globalThis.fetch = async (url) => {
+    const urlStr = String(url instanceof Request ? url.url : url);
+    if (urlStr.includes('/userop/prepare')) {
+      return new Response(JSON.stringify({ error: 'backend offline' }), { status: 500 });
+    }
+    // Valid uint256(10_000_000) = 10 USDC
+    return Response.json({
+      jsonrpc: '2.0',
+      id: 1,
+      result: '0x0000000000000000000000000000000000000000000000000000000000989680',
+    });
+  };
+
+  try {
+    await assert.rejects(
+      () => smartDeposit({
+        privateKey: PRIVATE_KEY,
+        rpcUrl: 'https://mainnet.base.org',
+        allsetApiUrl: 'http://localhost:9999',
+        tokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+        minAmount: 1_000_000n,
+        bridgeAddress: '0x8677EdAA374b7A47ff0093947AABE4aCbB2D4538',
+        depositCalldata: '0xdeadbeef',
+        pollIntervalMs: 10,
+      }),
+      (err: unknown) => {
+        assert.match(String(err), /prepare failed/i);
+        return true;
+      },
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
