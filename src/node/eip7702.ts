@@ -16,7 +16,7 @@
 
 import {
   createPublicClient,
-  encodePacked,
+  encodeAbiParameters,
   http,
   keccak256,
   parseAbi,
@@ -97,6 +97,8 @@ interface PrepareRequest {
   amount: string;
   bridgeAddress: Address;
   depositCalldata: Hex;
+  chainId: number;
+  nonce: Hex;
   timestamp: number;
   authSig: Hex;
 }
@@ -234,13 +236,41 @@ export async function smartDeposit(params: SmartDepositParams): Promise<SmartDep
   // Fetch chainId once — used for EIP-7702 auth and UserOp signing
   const chainId = await publicClient.getChainId();
 
-  // Step 2: Build request auth signature (proves caller owns the private key)
-  // Backend verifies: ecrecover(hash, authSig) == from
+  // Step 2: Build request auth signature (proves caller owns the private key).
+  // Preimage is abi.encode(...) of a domain tag + chainId + nonce + request fields.
+  // - Domain tag prevents cross-protocol signature collisions.
+  // - chainId prevents cross-chain replay.
+  // - nonce (random 32 bytes) prevents in-protocol replay; backend must track used nonces.
+  // - abi.encode (not encodePacked) eliminates dynamic-field collision ambiguity.
+  // Backend verifies: ecrecover(prefixed(hash), authSig) == from
   const timestamp = Math.floor(Date.now() / 1000);
+  const nonceBytes = crypto.getRandomValues(new Uint8Array(32));
+  const nonce = `0x${Array.from(nonceBytes, (b) => b.toString(16).padStart(2, '0')).join('')}` as Hex;
+  const DOMAIN_TAG = 'AllSet Portal authSig v1';
   const msgHash = keccak256(
-    encodePacked(
-      ['address', 'address', 'uint256', 'address', 'bytes', 'uint256'],
-      [eoa.address, tokenAddress, minAmount, bridgeAddress, depositCalldata, BigInt(timestamp)],
+    encodeAbiParameters(
+      [
+        { type: 'string' },
+        { type: 'uint256' },
+        { type: 'bytes32' },
+        { type: 'address' },
+        { type: 'address' },
+        { type: 'uint256' },
+        { type: 'address' },
+        { type: 'bytes' },
+        { type: 'uint256' },
+      ],
+      [
+        DOMAIN_TAG,
+        BigInt(chainId),
+        nonce,
+        eoa.address,
+        tokenAddress,
+        minAmount,
+        bridgeAddress,
+        depositCalldata,
+        BigInt(timestamp),
+      ],
     ),
   );
   const authSig = await eoa.signMessage({ message: { raw: msgHash } });
@@ -253,6 +283,8 @@ export async function smartDeposit(params: SmartDepositParams): Promise<SmartDep
     amount: minAmount.toString(),
     bridgeAddress,
     depositCalldata,
+    chainId,
+    nonce,
     timestamp,
     authSig,
   };
