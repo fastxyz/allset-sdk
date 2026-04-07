@@ -37,6 +37,18 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Encode a number/bigint as an even-length 0x-prefixed hex string.
+ * JSON-RPC "quantity" spec allows "0x0", but some strict bundler parsers
+ * (and EIP-7702 auth tuple consumers) expect byte-aligned hex — so we pad
+ * to at least 2 hex chars and always an even length.
+ */
+function toEvenHex(n: number | bigint): Hex {
+  let h = n.toString(16);
+  if (h.length % 2 !== 0) h = `0${h}`;
+  return `0x${h}` as Hex;
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface SmartDepositParams {
@@ -316,9 +328,9 @@ export async function smartDeposit(params: SmartDepositParams): Promise<SmartDep
     const yParity = signed.yParity ?? 0;
     eip7702Auth = {
       address: prepared.delegate7702Address,
-      chainId: `0x${chainId.toString(16)}` as Hex,
-      nonce: `0x${accountNonce.toString(16)}` as Hex,
-      yParity: `0x${yParity.toString(16)}` as Hex,
+      chainId: toEvenHex(chainId),
+      nonce: toEvenHex(accountNonce),
+      yParity: toEvenHex(yParity),
       r: `0x${BigInt(signed.r).toString(16).padStart(64, '0')}` as Hex,
       s: `0x${BigInt(signed.s).toString(16).padStart(64, '0')}` as Hex,
     };
