@@ -49,6 +49,37 @@ function toEvenHex(n: number | bigint): Hex {
   return `0x${h}` as Hex;
 }
 
+/**
+ * POST JSON with a hard timeout via AbortController.
+ * Node's global fetch has no default timeout — without this a hung
+ * backend (or stalled proxy/LB/TLS handshake) would hang smartDeposit
+ * indefinitely. Throws a descriptive error on timeout or non-2xx.
+ */
+async function postJson<T>(url: string, body: unknown, timeoutMs: number): Promise<T> {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: ac.signal,
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`POST ${url} failed (${res.status}): ${err}`);
+    }
+    return (await res.json()) as T;
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') {
+      throw new Error(`POST ${url} timed out after ${timeoutMs}ms`);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface SmartDepositParams {
@@ -70,6 +101,8 @@ export interface SmartDepositParams {
   pollIntervalMs?: number;
   /** Total timeout in ms waiting for balance (default: no timeout) */
   timeoutMs?: number;
+  /** Per-request HTTP timeout in ms for backend POSTs (default: 60000) */
+  requestTimeoutMs?: number;
   /** Called on each balance check */
   onBalanceCheck?: (balance: bigint) => void;
 }
@@ -216,6 +249,7 @@ export async function smartDeposit(params: SmartDepositParams): Promise<SmartDep
     depositCalldata,
     pollIntervalMs = 3000,
     timeoutMs,
+    requestTimeoutMs = 60_000,
     onBalanceCheck,
   } = params;
 
@@ -301,18 +335,11 @@ export async function smartDeposit(params: SmartDepositParams): Promise<SmartDep
     authSig,
   };
 
-  const prepareRes = await fetch(`${allsetApiUrl}/userop/prepare`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(prepareReq),
-  });
-
-  if (!prepareRes.ok) {
-    const err = await prepareRes.text();
-    throw new Error(`smartDeposit prepare failed (${prepareRes.status}): ${err}`);
-  }
-
-  const prepared = (await prepareRes.json()) as PrepareResponse;
+  const prepared = await postJson<PrepareResponse>(
+    `${allsetApiUrl}/userop/prepare`,
+    prepareReq,
+    requestTimeoutMs,
+  );
 
   // Step 4: Sign EIP-7702 authorization.
   // We always re-sign to ensure the EOA is delegated to the correct v0.8 impl,
@@ -358,18 +385,11 @@ export async function smartDeposit(params: SmartDepositParams): Promise<SmartDep
     signedUserOp: serialized,
   };
 
-  const submitRes = await fetch(`${allsetApiUrl}/userop/submit`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(submitReq),
-  });
-
-  if (!submitRes.ok) {
-    const err = await submitRes.text();
-    throw new Error(`smartDeposit submit failed (${submitRes.status}): ${err}`);
-  }
-
-  const { txHash, userOpHash: returnedUserOpHash } = (await submitRes.json()) as SubmitResponse;
+  const { txHash, userOpHash: returnedUserOpHash } = await postJson<SubmitResponse>(
+    `${allsetApiUrl}/userop/submit`,
+    submitReq,
+    requestTimeoutMs,
+  );
 
   return {
     txHash,
