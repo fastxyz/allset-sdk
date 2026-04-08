@@ -83,7 +83,13 @@ async function postJson<T>(url: string, body: unknown, timeoutMs: number): Promi
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface SmartDepositParams {
-  /** EOA private key — stays local, never sent to backend */
+  /**
+   * EOA private key — stays local, never sent to backend.
+   * The EOA should be quiescent during this call: do not send other
+   * transactions from this key concurrently. EIP-7702 authorization
+   * signing binds to the account nonce, and a concurrent tx from
+   * another process will silently invalidate the delegation.
+   */
   privateKey: Hex;
   /** EVM JSON-RPC URL — used for balance polling and forwarded to backend for chainId detection */
   rpcUrl: string;
@@ -355,7 +361,16 @@ export async function smartDeposit(params: SmartDepositParams): Promise<SmartDep
   // even if a prior (possibly outdated) delegation exists.
   let eip7702Auth: Eip7702Auth | undefined;
   if (prepared.needsAuthorization) {
-    const accountNonce = await publicClient.getTransactionCount({ address: eoa.address });
+    // Use 'pending' so a tx already sitting in this EOA's mempool is counted.
+    // The EIP-7702 authorization binds to the account nonce at consumption
+    // time; if a pending tx mines between our read and bundler inclusion,
+    // a 'latest'-based nonce would be stale and the delegation would silently
+    // no-op. Callers must still keep the EOA otherwise quiescent — we cannot
+    // defend against concurrent writes from another process.
+    const accountNonce = await publicClient.getTransactionCount({
+      address: eoa.address,
+      blockTag: 'pending',
+    });
     const signed = await eoa.signAuthorization({
       address: prepared.delegate7702Address,
       chainId,
