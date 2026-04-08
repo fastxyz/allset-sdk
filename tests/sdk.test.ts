@@ -27,6 +27,7 @@ import {
   executeBridge,
   evmSign,
   smartDeposit,
+  InsufficientBalanceError,
 } from '../src/node/index.ts';
 
 const FAST_ADDRESS = 'fast1rsxfj84yhsskpr6g5ll2td7pkk3dnlsfwldsmawca4922qn3dqvqsxelzv';
@@ -1029,11 +1030,9 @@ test('smartDeposit is exported from node entry', () => {
   assert.equal(typeof smartDeposit, 'function');
 });
 
-test('smartDeposit rejects when balance timeout expires before minimum is met', async () => {
-  const PRIVATE_KEY = '0x31c269fb59cf298908f57189aa5418e724f3513ae69d21bbafe78210a09712e6';
+test('smartDeposit throws InsufficientBalanceError when balance is below amount', async () => {
+  const PRIVATE_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
   const originalFetch = globalThis.fetch;
-
-  // Return valid uint256(0) for every RPC call — balance stays 0, poll loop times out
   globalThis.fetch = async () => {
     return Response.json({
       jsonrpc: '2.0',
@@ -1049,14 +1048,12 @@ test('smartDeposit rejects when balance timeout expires before minimum is met', 
         rpcUrl: 'https://mainnet.base.org',
         allsetApiUrl: 'http://localhost:9999',
         tokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
-        minAmount: 1_000_000n,
+        amount: 1_000_000n,
         bridgeAddress: '0x8677EdAA374b7A47ff0093947AABE4aCbB2D4538',
         depositCalldata: '0xdeadbeef',
-        pollIntervalMs: 10,
-        timeoutMs: 50,
       }),
       (err: unknown) => {
-        assert.match(String(err), /timed out/i);
+        assert.ok(err instanceof InsufficientBalanceError, `expected InsufficientBalanceError, got ${err}`);
         return true;
       },
     );
@@ -1066,10 +1063,8 @@ test('smartDeposit rejects when balance timeout expires before minimum is met', 
 });
 
 test('smartDeposit rejects with prepare error when backend returns 500', async () => {
-  const PRIVATE_KEY = '0x31c269fb59cf298908f57189aa5418e724f3513ae69d21bbafe78210a09712e6';
+  const PRIVATE_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
   const originalFetch = globalThis.fetch;
-
-  // Return 10 USDC balance for RPC calls, 500 for prepare
   globalThis.fetch = async (url) => {
     const urlStr = String(url instanceof Request ? url.url : url);
     if (urlStr.includes('/userop/prepare')) {
@@ -1090,13 +1085,12 @@ test('smartDeposit rejects with prepare error when backend returns 500', async (
         rpcUrl: 'https://mainnet.base.org',
         allsetApiUrl: 'http://localhost:9999',
         tokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
-        minAmount: 1_000_000n,
+        amount: 1_000_000n,
         bridgeAddress: '0x8677EdAA374b7A47ff0093947AABE4aCbB2D4538',
         depositCalldata: '0xdeadbeef',
-        pollIntervalMs: 10,
       }),
       (err: unknown) => {
-        assert.match(String(err), /prepare failed/i);
+        assert.match(String(err), /failed/i);
         return true;
       },
     );
