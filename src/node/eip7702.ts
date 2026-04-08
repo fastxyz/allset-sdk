@@ -105,6 +105,8 @@ export interface SmartDepositParams {
   requestTimeoutMs?: number;
   /** Called on each balance check */
   onBalanceCheck?: (balance: bigint) => void;
+  /** Called on transient RPC errors during balance polling; polling continues */
+  onPollError?: (err: Error) => void;
 }
 
 export interface SmartDepositResult {
@@ -251,6 +253,7 @@ export async function smartDeposit(params: SmartDepositParams): Promise<SmartDep
     timeoutMs,
     requestTimeoutMs = 60_000,
     onBalanceCheck,
+    onPollError,
   } = params;
 
   const eoa = privateKeyToAccount(privateKey);
@@ -266,15 +269,21 @@ export async function smartDeposit(params: SmartDepositParams): Promise<SmartDep
       throw new Error('smartDeposit: timed out waiting for balance');
     }
 
-    tokenBalance = (await publicClient.readContract({
-      address: tokenAddress,
-      abi: ERC20_BALANCEOF_ABI,
-      functionName: 'balanceOf',
-      args: [eoa.address],
-    })) as bigint;
+    try {
+      tokenBalance = (await publicClient.readContract({
+        address: tokenAddress,
+        abi: ERC20_BALANCEOF_ABI,
+        functionName: 'balanceOf',
+        args: [eoa.address],
+      })) as bigint;
 
-    onBalanceCheck?.(tokenBalance);
-    if (tokenBalance >= minAmount) break;
+      onBalanceCheck?.(tokenBalance);
+      if (tokenBalance >= minAmount) break;
+    } catch (e) {
+      // Transient RPC error (rate limit, 5xx, connection reset, etc.).
+      // Surface via callback and keep polling — timeoutMs still bounds total wait.
+      onPollError?.(e as Error);
+    }
 
     await sleep(pollIntervalMs);
   }
